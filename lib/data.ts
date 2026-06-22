@@ -102,7 +102,7 @@ export const plans = [
   },
   {
     name: "Annual",
-    price: "₦8,000",
+    price: "₦24,000",
     period: "per year",
     desc: "Best value — save over 70% compared to monthly. Lock in your success.",
     features: [

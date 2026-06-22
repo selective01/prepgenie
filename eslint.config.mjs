@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Backend uses CommonJS — has its own ESLint config
+    "prepgenie-backend/**",
   ]),
 ]);
 

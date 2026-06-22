@@ -1,0 +1,349 @@
+"use client";
+import { useState } from "react";
+import AppShell from "@/components/layout/AppShell";
+import { useRouter } from "next/navigation";
+import {
+  TrendingUp, AlertCircle, Flame, CalendarDays,
+  ChevronRight, Download, SlidersHorizontal, ArrowRight,
+} from "lucide-react";
+
+// ── mock data ─────────────────────────────────────────────────────────────────
+
+const SCORE_7D = [
+  { day: "Mon", score: 48 },
+  { day: "Tue", score: 55 },
+  { day: "Wed", score: 52 },
+  { day: "Thu", score: 61 },
+  { day: "Fri", score: 67 },
+  { day: "Sat", score: 72 },
+  { day: "Sun", score: 78 },
+];
+
+const SCORE_30D = [
+  { day: "W1",  score: 42 },
+  { day: "W2",  score: 51 },
+  { day: "W3",  score: 58 },
+  { day: "W4",  score: 65 },
+  { day: "W5",  score: 62 },
+  { day: "W6",  score: 70 },
+  { day: "W7",  score: 75 },
+];
+
+const SUBJECTS = [
+  { name: "Mathematics",  score: 78, icon: "∑" },
+  { name: "Physics",      score: 64, icon: "⚛" },
+  { name: "English",      score: 82, icon: "A" },
+  { name: "Biology",      score: 42, icon: "🧬" },
+];
+
+const WEAK_AREAS = [
+  { topic: "Calculus: Integration",  subject: "Math",    accuracy: 15, lastQuiz: "34%"  },
+  { topic: "Thermodynamics",         subject: "Physics",  accuracy: 20, lastQuiz: "41%"  },
+  { topic: "Nervous System Path",    subject: "Biology",  accuracy: 18, lastQuiz: "48%"  },
+  { topic: "Organic Chemistry",      subject: "Chem",     accuracy: 12, lastQuiz: "29%"  },
+];
+
+const STREAK_DAYS = 12;
+const TOTAL_DAYS  = 64;
+const PREP_SCORE  = 742;
+
+// Generate 90-day heatmap data (mock — last 12 days active in a pattern)
+function generateHeatmap() {
+  const cells: boolean[] = Array(90).fill(false);
+  // simulate activity pattern matching the design
+  const activePattern = [
+    0,1,2,3,4,5,6,7,8,9,10,11,         // last 12 days (streak)
+    14,15,16,18,19,21,22,23,25,26,      // some days before
+    28,29,31,32,34,35,36,38,39,40,      // more sparse
+    42,43,45,47,49,50,52,54,56,58,60,62 // further back
+  ];
+  activePattern.forEach(i => { if (i < 90) cells[89 - i] = true; });
+  return cells;
+}
+const HEATMAP = generateHeatmap();
+
+// ── mini chart ────────────────────────────────────────────────────────────────
+
+function ScoreChart({ data }: { data: { day: string; score: number }[] }) {
+  const max    = 100;
+  const W      = 500;
+  const H      = 160;
+  const padX   = 40;
+  const padY   = 20;
+  const chartW = W - padX * 2;
+  const chartH = H - padY * 2;
+
+  const points = data.map((d, i) => ({
+    x: padX + (i / (data.length - 1)) * chartW,
+    y: padY + chartH - (d.score / max) * chartH,
+  }));
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${padY + chartH} L ${points[0].x} ${padY + chartH} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", overflow: "visible" }}>
+      {/* y-axis labels */}
+      {[0, 25, 50, 75, 100].map(v => {
+        const y = padY + chartH - (v / max) * chartH;
+        return (
+          <g key={v}>
+            <line x1={padX} y1={y} x2={W - padX} y2={y} stroke="#e4e8f0" strokeWidth="1" strokeDasharray="4,4" />
+            <text x={padX - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#6b7280">{v}%</text>
+          </g>
+        );
+      })}
+
+      {/* area fill */}
+      <path d={areaPath} fill="rgba(245,194,0,0.15)" />
+
+      {/* line */}
+      <path d={linePath} fill="none" stroke="#0d1b3e" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* dots */}
+      {points.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="4" fill="var(--yellow)" stroke="var(--navy)" strokeWidth="1.5" />
+      ))}
+
+      {/* x-axis labels */}
+      {data.map((d, i) => (
+        <text key={i} x={points[i].x} y={H - 2} textAnchor="middle" fontSize="10" fill="#6b7280">{d.day}</text>
+      ))}
+    </svg>
+  );
+}
+
+// ── page ──────────────────────────────────────────────────────────────────────
+
+export default function ProgressPage() {
+  const router  = useRouter();
+  const [range, setRange] = useState<"7" | "30">("7");
+  const data    = range === "7" ? SCORE_7D : SCORE_30D;
+  const latest  = data[data.length - 1].score;
+  const prev    = data[data.length - 2].score;
+  const change  = latest - prev;
+
+  return (
+    <AppShell>
+      <div style={{ padding: "2rem 2rem 3rem" }}>
+
+        {/* ── header ── */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.75rem", flexWrap: "wrap", gap: "1rem" }}>
+          <div>
+            <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "1.8rem", fontWeight: 700, color: "var(--navy)", marginBottom: "0.3rem" }}>
+              Progress Tracker
+            </h1>
+            <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+              Analysing your preparation journey. You are in the top 15% of students studying for JAMB.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+            <button style={{ display: "flex", alignItems: "center", gap: 6, background: "white", border: "1px solid var(--border)", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 600, color: "var(--navy)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+              <SlidersHorizontal size={14} strokeWidth={2} /> Filter Subjects
+            </button>
+            <button style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--navy)", border: "none", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 700, color: "white", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+              <Download size={14} strokeWidth={2} /> Export Report
+            </button>
+          </div>
+        </div>
+
+        {/* ── range toggle ── */}
+        <div style={{ display: "flex", gap: "0.4rem", marginBottom: "1.5rem" }}>
+          {(["7", "30"] as const).map(r => (
+            <button key={r} onClick={() => setRange(r)} style={{
+              padding: "0.4rem 1rem", borderRadius: 8,
+              fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: "0.8rem",
+              cursor: "pointer",
+              background: range === r ? "var(--navy)" : "white",
+              color: range === r ? "white" : "var(--muted)",
+              border: range === r ? "none" : "1px solid var(--border)",
+            } as React.CSSProperties}>
+              {r} Days
+            </button>
+          ))}
+        </div>
+
+        {/* ── top row: chart + subject proficiency ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "1.25rem", marginBottom: "1.25rem" }} className="progress-top-grid">
+
+          {/* score chart */}
+          <div style={{ background: "white", borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--navy)", marginBottom: 2 }}>Score Performance</div>
+                <div style={{ fontSize: "0.78rem", color: "var(--muted)" }}>Your average quiz accuracy over time</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: change >= 0 ? "#f0fdf4" : "#fef2f2", borderRadius: 20, padding: "0.3rem 0.75rem" }}>
+                <TrendingUp size={13} color={change >= 0 ? "#22c55e" : "#ef4444"} strokeWidth={2} />
+                <span style={{ fontSize: "0.78rem", fontWeight: 700, color: change >= 0 ? "#22c55e" : "#ef4444" }}>
+                  {change >= 0 ? "+" : ""}{change}%
+                </span>
+              </div>
+            </div>
+            <ScoreChart data={data} />
+          </div>
+
+          {/* subject proficiency */}
+          <div style={{ background: "white", borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "1.5rem" }}>
+            <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--navy)", marginBottom: 4 }}>Subject Mastery</div>
+            <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: "1.25rem" }}>Performance across core subjects</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {SUBJECTS.map(({ name, score }) => {
+                const isWeak = score < 60;
+                return (
+                  <div key={name}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                      <span style={{ fontSize: "0.88rem", fontWeight: 500, color: "var(--navy)" }}>{name}</span>
+                      <span style={{ fontSize: "0.88rem", fontWeight: 800, color: isWeak ? "#ef4444" : "var(--navy)" }}>{score}%</span>
+                    </div>
+                    <div style={{ height: 7, background: "var(--off-white)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${score}%`, background: isWeak ? "#ef4444" : "var(--navy)", borderRadius: 4, transition: "width .6s ease" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── bottom row: weak areas + heatmap ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem", marginBottom: "1.25rem" }} className="progress-bottom-grid">
+
+          {/* weak areas */}
+          <div style={{ background: "white", borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <AlertCircle size={17} color="#ef4444" strokeWidth={2} />
+                <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--navy)" }}>Critical Gaps</span>
+              </div>
+              <button style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--yellow-dark)", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+                View All
+              </button>
+            </div>
+            <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: "1.1rem" }}>Focus on these to boost your overall score</p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+              {WEAK_AREAS.map(({ topic, subject, accuracy, lastQuiz }) => (
+                <div key={topic} style={{
+                  border: "1.5px solid #ef4444", borderRadius: "var(--radius-sm)",
+                  padding: "0.85rem 1rem",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem",
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: 3 }}>
+                      <span style={{ fontSize: "0.68rem", fontWeight: 700, background: "var(--off-white)", color: "var(--muted)", padding: "0.1rem 0.5rem", borderRadius: 4 }}>{subject}</span>
+                      <span style={{ fontSize: "0.68rem", color: "var(--muted)" }}>↗ {accuracy} mins</span>
+                    </div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--navy)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{topic}</div>
+                    <div style={{ fontSize: "0.72rem", color: "var(--muted)" }}>Last Quiz: {lastQuiz} accuracy</div>
+                  </div>
+                  <button
+                    onClick={() => router.push("/quiz")}
+                    style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "var(--yellow-dark)", fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: "0.78rem", flexShrink: 0, whiteSpace: "nowrap" }}
+                  >
+                    Practise Now <ChevronRight size={13} strokeWidth={2.5} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {}}
+              style={{ display: "flex", alignItems: "center", gap: 5, marginTop: "1rem", background: "none", border: "none", cursor: "pointer", color: "var(--yellow-dark)", fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: "0.82rem" }}
+            >
+              View Full Analysis <ArrowRight size={14} strokeWidth={2} />
+            </button>
+          </div>
+
+          {/* consistency heatmap */}
+          <div style={{ background: "var(--navy)", borderRadius: "var(--radius)", padding: "1.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.3rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Flame size={17} color="var(--yellow)" strokeWidth={2} />
+                <span style={{ fontWeight: 700, fontSize: "1rem", color: "white" }}>90-Day Streak</span>
+              </div>
+              <span style={{ fontFamily: "'Playfair Display',serif", fontSize: "1.1rem", fontWeight: 800, color: "var(--yellow)" }}>
+                {STREAK_DAYS} DAYS
+              </span>
+            </div>
+
+            {/* stats row */}
+            <div style={{ display: "flex", gap: "1.25rem", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <CalendarDays size={13} color="rgba(255,255,255,.4)" strokeWidth={2} />
+                <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.5)" }}>Total Days: {TOTAL_DAYS}</span>
+              </div>
+            </div>
+
+            {/* heatmap grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(15, 1fr)", gap: 4, marginBottom: "0.85rem" }}>
+              {HEATMAP.map((active, i) => (
+                <div key={i} style={{
+                  aspectRatio: "1", borderRadius: 4,
+                  background: active ? "var(--yellow)" : "rgba(255,255,255,.08)",
+                  transition: "background .2s",
+                }} />
+              ))}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,.4)" }}>Less</span>
+                {[0.08, 0.2, 0.4, 0.7, 1].map((o, i) => (
+                  <div key={i} style={{ width: 10, height: 10, borderRadius: 3, background: `rgba(245,194,0,${o})` }} />
+                ))}
+                <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,.4)" }}>More</span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.4)", fontStyle: "italic", marginBottom: "1.25rem" }}>
+              Consistency is the key to retention. Don&apos;t break the chain!
+            </p>
+
+            {/* rank */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "1rem", borderTop: "1px solid rgba(255,255,255,.1)" }}>
+              <div>
+                <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "rgba(255,255,255,.4)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Current Rank</div>
+                <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "white" }}>Consistency Master</div>
+              </div>
+              <button style={{ background: "rgba(255,255,255,.1)", border: "none", borderRadius: 8, padding: "0.45rem 0.9rem", fontSize: "0.78rem", fontWeight: 700, color: "white", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+                Leaderboard
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── prep score ── */}
+        <div style={{
+          background: "white", borderRadius: "var(--radius)",
+          border: "1px solid var(--border)", padding: "1.25rem 1.5rem",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div>
+            <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Prep Score</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "2.2rem", fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
+              {PREP_SCORE}
+            </div>
+          </div>
+          <button
+            onClick={() => router.push("/quiz")}
+            style={{
+              width: 44, height: 44, borderRadius: "50%",
+              background: "var(--yellow)", border: "none", cursor: "pointer",
+              display: "grid", placeItems: "center",
+            }}
+          >
+            <ArrowRight size={20} color="var(--navy)" strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        @media(max-width: 900px) {
+          .progress-top-grid { grid-template-columns: 1fr !important; }
+          .progress-bottom-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </AppShell>
+  );
+}

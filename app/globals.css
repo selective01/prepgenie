@@ -62,8 +62,15 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
 .accent{color:var(--yellow);}
 
 /* CARD */
-.card{background:white;border-radius:var(--radius);transition:transform .3s,box-shadow .3s;}
+.card{background:white;border-radius:var(--radius);transition:box-shadow .3s;}
 .card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);}
+
+/* ── App shell: no lift/translate on hover inside authenticated pages ── */
+.app-shell .card:hover{transform:none;box-shadow:var(--shadow);}
+.app-shell .btn-yellow:hover{transform:none;}
+.app-shell .btn-navy:hover{transform:none;}
+.app-shell .btn-outline-navy:hover{transform:none;}
+.app-shell .btn-outline-white:hover{transform:none;}
 
 /* PLACEHOLDER */
 .placeholder-img{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;background:var(--off-white);color:var(--navy);}
