@@ -38,8 +38,7 @@ export default function Testimonials() {
       <section id="testimonials" style={{ padding: "5rem 5%", background: "var(--off-white)" }}>
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           <div className="reveal" style={{ textAlign: "center", marginBottom: "3rem" }}>
-            <div className="section-label" style={{ justifyContent: "center" }}>Our Students Testimonials</div>
-            <h2 className="section-title">Students Say About PrepGenie</h2>
+            <h2 className="section-title">What Students Say About PrepGenie</h2>
           </div>
 
           {/* Desktop: always show 4 in 2-col grid. Mobile: show 1 then expand */}
@@ -122,7 +121,6 @@ export default function Testimonials() {
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "2.5rem", flexWrap: "wrap", gap: "1rem" }}>
             <div className="reveal-left">
-              <div className="section-label">Our News & Blogs</div>
               <h2 className="section-title" style={{ marginBottom: 0 }}>Latest News & Blogs</h2>
             </div>
             <a href="#" className="btn-navy reveal-right">View All Posts →</a>

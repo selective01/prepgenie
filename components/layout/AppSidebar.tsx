@@ -5,12 +5,12 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, BookOpen, MessageSquare, ClipboardList,
-  BookMarked, TrendingUp, Settings, LogOut, Zap, Menu, X,
+  BookMarked, TrendingUp, Settings, LogOut, Menu, X,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard",  href: "/dashboard",  icon: LayoutDashboard },
-  { label: "Subjects",   href: "/subjects",   icon: BookOpen        },
+  { label: "Subjects",   href: "/my-subjects", icon: BookOpen        },
   { label: "AI Tutor",   href: "/tutor",      icon: MessageSquare   },
   { label: "Quiz",       href: "/quiz",       icon: ClipboardList   },
   { label: "Study Plan", href: "/study-plan", icon: BookMarked      },
@@ -30,9 +30,7 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { user, logout } = useAuth();
-  const initials = user?.name?.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) ?? "??";
-  const displayName = user?.name ?? "Guest";
-  const plan = user?.plan === "premium" ? "Premium Plan" : "Free Plan";
+  const initials = user?.name?.split(" ").filter(Boolean).map(n => n[0]).join("").toUpperCase().slice(0, 2) || "...";
 
   // prevent body scroll when drawer is open
   useEffect(() => {
@@ -51,8 +49,15 @@ export default function AppSidebar() {
         {/* Logo */}
         <div style={{ padding: "1.5rem 1.25rem 1rem", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
           <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--yellow)", display: "grid", placeItems: "center" }}>
-              <Zap size={18} color="var(--navy)" strokeWidth={2.5} />
+            <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--navy)", border: "1.5px solid rgba(245,194,0,.3)", display: "grid", placeItems: "center" }}>
+              <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+              <rect x="14.5" y="24" width="3" height="5" rx="1" fill="white" opacity=".8"/>
+              <rect x="11" y="28" width="10" height="2" rx="1" fill="white" opacity=".8"/>
+              <rect x="15.2" y="15" width="1.6" height="10" rx=".8" fill="white" opacity=".9"/>
+              <path d="M5 15 L13.5 6 L18.5 6 L27 15 Z" fill="var(--yellow)"/>
+              <line x1="6" y1="15" x2="26" y2="15" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/>
+              <ellipse cx="16" cy="17" rx="5" ry="1.5" fill="var(--yellow)" opacity=".25"/>
+            </svg>
             </div>
             <span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: "1.15rem", color: "white" }}>
               Prep<span style={{ color: "var(--yellow)" }}>Genie</span>
@@ -88,7 +93,7 @@ export default function AppSidebar() {
               <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--navy)" }}>{initials}</span>
             </div>
             <div>
-              <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "white", lineHeight: 1.2 }}>Alex Johnson</div>
+              <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "white", lineHeight: 1.2 }}>{user?.name ?? "User"}</div>
               <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.45)" }}>Free Plan</div>
             </div>
           </div>
@@ -158,8 +163,14 @@ export default function AppSidebar() {
         {/* Drawer header */}
         <div style={{ padding: "1.25rem 1rem", borderBottom: "1px solid rgba(255,255,255,.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <div style={{ width: 30, height: 30, borderRadius: 7, background: "var(--yellow)", display: "grid", placeItems: "center" }}>
-              <Zap size={14} color="var(--navy)" strokeWidth={2.5} />
+            <div style={{ width: 30, height: 30, borderRadius: 7, background: "var(--navy)", border: "1.5px solid rgba(245,194,0,.3)", display: "grid", placeItems: "center" }}>
+              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+              <rect x="14.5" y="24" width="3" height="5" rx="1" fill="white" opacity=".8"/>
+              <rect x="11" y="28" width="10" height="2" rx="1" fill="white" opacity=".8"/>
+              <rect x="15.2" y="15" width="1.6" height="10" rx=".8" fill="white" opacity=".9"/>
+              <path d="M5 15 L13.5 6 L18.5 6 L27 15 Z" fill="var(--yellow)"/>
+              <line x1="6" y1="15" x2="26" y2="15" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/>
+            </svg>
             </div>
             <span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: "1.05rem", color: "white" }}>
               Prep<span style={{ color: "var(--yellow)" }}>Genie</span>
@@ -200,7 +211,7 @@ export default function AppSidebar() {
               <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--navy)" }}>{initials}</span>
             </div>
             <div>
-              <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "white" }}>Alex Johnson</div>
+              <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "white" }}>{user?.name ?? "User"}</div>
               <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.45)" }}>Free Plan</div>
             </div>
           </div>

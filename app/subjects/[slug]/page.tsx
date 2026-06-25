@@ -79,9 +79,7 @@ export default function SubjectPage({ params }: { params: { slug: string } }) {
           {/* Cards grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1.4rem" }} className="topic-grid">
             {subject.topicList.map(topic => (
-              <div key={topic.id} className="topic-card" style={{ background: "white", borderRadius: "var(--radius)", overflow: "hidden", transition: "transform .25s" }}
-                onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-4px)")}
-                onMouseLeave={e => (e.currentTarget.style.transform = "translateY(0)")}>
+              <div key={topic.id} className="topic-card topic-card-hover" style={{ background: "white", borderRadius: "var(--radius)", overflow: "hidden", transition: "transform .25s" }}>
 
                 {/* Thumbnail */}
                 <div style={{ position: "relative", height: 180 }}>
@@ -124,8 +122,7 @@ export default function SubjectPage({ params }: { params: { slug: string } }) {
                     </span>
                     <Link href="/signup"
                       style={{ display: "inline-flex", alignItems: "center", gap: ".35rem", background: subject.accent, color: "white", fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: ".78rem", padding: ".44rem 1rem", borderRadius: 6, textDecoration: "none", transition: "opacity .2s" }}
-                      onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => (e.currentTarget.style.opacity = ".85")}
-                      onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => (e.currentTarget.style.opacity = "1")}>
+                      >
                       Start Practice →
                     </Link>
                   </div>

@@ -1,33 +1,26 @@
 "use client";
+import { useState, useEffect } from "react";
 import AppShell from "@/components/layout/AppShell";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 import {
   Flame, Trophy, ClipboardList, CheckCircle2,
   MessageSquare, TrendingUp, Clock,
-  Zap, Bell,
+  Bell, Zap,
 } from "lucide-react";
 
 // ── mock data ────────────────────────────────────────────────────────────────
 const stats = [
-  { label: "Day Streak",   value: "12",  sub: "days",     icon: Flame,         iconColor: "#f97316" },
-  { label: "Avg. Score",   value: "84%", sub: "this week", icon: Trophy,        iconColor: "#d4a800" },
-  { label: "Goals Met",    value: "24",  sub: "total",     icon: CheckCircle2,  iconColor: "#4a90d9" },
-  { label: "Ques. Done",   value: "156", sub: "total",     icon: ClipboardList, iconColor: "#8b5cf6" },
+  { label: "Day Streak",  value: "0",  sub: "days",    icon: Flame,         iconColor: "#f97316" },
+  { label: "Avg. Score",  value: "0%", sub: "overall", icon: Trophy,        iconColor: "#d4a800" },
+  { label: "Goals Met",   value: "0",  sub: "total",   icon: CheckCircle2,  iconColor: "#4a90d9" },
+  { label: "Ques. Done",  value: "0",  sub: "correct", icon: ClipboardList, iconColor: "#8b5cf6" },
 ];
 
-const tasks = [
-  { subject: "Mathematics", topic: "Review Quadratic Equations",  duration: "45 mins", done: false, color: "#4a90d9" },
-  { subject: "Biology",     topic: "Cell Structure Quiz",          duration: "20 mins", done: true,  color: "#22c55e" },
-  { subject: "Chemistry",   topic: "Organic Chemistry Intro",      duration: "1 hour",  done: false, color: "#f97316" },
-];
+const tasks: { subject: string; topic: string; duration: string; done: boolean }[] = [];
 
-const subjectPerformance = [
-  { name: "Mathematics", score: 78, color: "#4a90d9" },
-  { name: "Physics",     score: 45, color: "#ef4444" },
-  { name: "Chemistry",   score: 62, color: "#d4a800" },
-  { name: "Biology",     score: 88, color: "#22c55e" },
-];
+const subjectPerformance: { subject: string; pct: number }[] = [];
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, icon: Icon, iconColor }: {
@@ -59,8 +52,8 @@ function StatCard({ label, value, sub, icon: Icon, iconColor }: {
   );
 }
 
-function TaskRow({ subject, topic, duration, done, color }: {
-  subject: string; topic: string; duration: string; done: boolean; color: string;
+function TaskRow({ subject, topic, duration, done, color = "#4a90d9" }: {
+  subject: string; topic: string; duration: string; done: boolean; color?: string;
 }) {
   return (
     <div style={{
@@ -108,11 +101,29 @@ function TaskRow({ subject, topic, duration, done, color }: {
 
 // ── page ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const firstName = user?.name?.split(" ")[0] ?? "there";
-  const daysLeft = user?.examDate
-    ? Math.max(0, Math.ceil((new Date(user.examDate).getTime() - new Date().getTime()) / 86400000))
-    : 42;
+
+  const [dashData, setDashData] = useState<{
+    stats: { currentStreak: number; avgScore: number; goalsMet: number; totalCorrect: number; daysToExam: number | null };
+    todayTasks: { id: string; subject: string; topic: string; duration: string; done: boolean }[];
+    subjectPerformance: { subject: string; avgScore: number }[];
+  } | null>(null);
+
+  useEffect(() => {
+    const t = token || localStorage.getItem("pg_token");
+    if (!t) return;
+    fetch(`${API}/api/dashboard`, { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json())
+      .then(d => { if (d.success) setDashData(d.data); })
+      .catch(console.error);
+  }, [token]);
+
+  const focusTasks    = dashData?.todayTasks?.length ? dashData.todayTasks : tasks;
+  const subjectPerf   = dashData?.subjectPerformance?.length ? dashData.subjectPerformance.map(s => ({ subject: s.subject, pct: s.avgScore })) : subjectPerformance;
+
+  const daysLeft = dashData?.stats?.daysToExam
+    ?? (user?.examDate ? Math.max(0, Math.ceil((new Date(user.examDate).getTime() - new Date().getTime()) / 86400000)) : null);
 
   return (
     <AppShell>
@@ -138,7 +149,7 @@ export default function DashboardPage() {
             {/* Exam chip */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--navy)", color: "white", padding: "0.45rem 0.9rem", borderRadius: 20, fontSize: "0.78rem", fontWeight: 600 }}>
               <Clock size={13} strokeWidth={2} />
-              JAMB: {daysLeft} Days left
+              JAMB: {daysLeft !== null ? `${daysLeft} Days left` : "Set exam date"}
             </div>
           </div>
         </div>
@@ -163,7 +174,17 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-              {tasks.map(t => <TaskRow key={t.topic} {...t} />)}
+              {focusTasks.length > 0
+                ? focusTasks.map((t: { topic: string; subject: string; duration: string; done: boolean; color?: string }) => <TaskRow key={t.topic} {...t} />)
+                : (
+                  <div style={{ textAlign: "center", padding: "1.25rem", background: "var(--off-white)", borderRadius: "var(--radius-sm)" }}>
+                    <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.5rem" }}>No tasks yet.</p>
+                    <Link href="/study-plan" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--yellow-dark)", textDecoration: "none" }}>
+                      Generate your study plan →
+                    </Link>
+                  </div>
+                )
+              }
             </div>
           </div>
 
@@ -208,17 +229,27 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-            {subjectPerformance.map(({ name, score, color }) => (
-              <div key={name}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                  <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,.7)", fontWeight: 500 }}>{name}</span>
-                  <span style={{ fontSize: "0.8rem", color: score < 60 ? "#ef4444" : "var(--yellow)", fontWeight: 700 }}>{score}%</span>
+            {subjectPerf.length > 0
+              ? subjectPerf.map(({ subject, pct }) => (
+                <div key={subject}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                    <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,.7)", fontWeight: 500 }}>{subject}</span>
+                    <span style={{ fontSize: "0.8rem", color: pct < 60 ? "#ef4444" : "var(--yellow)", fontWeight: 700 }}>{pct}%</span>
+                  </div>
+                  <div style={{ height: 6, background: "rgba(255,255,255,.12)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: pct < 60 ? "#ef4444" : "var(--yellow)", borderRadius: 4, transition: "width 0.8s ease" }} />
+                  </div>
                 </div>
-                <div style={{ height: 6, background: "rgba(255,255,255,.12)", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${score}%`, background: score < 60 ? "#ef4444" : color, borderRadius: 4, transition: "width 0.8s ease" }} />
+              ))
+              : (
+                <div style={{ textAlign: "center", padding: "1rem 0" }}>
+                  <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,.45)", marginBottom: "0.5rem" }}>No quiz data yet.</p>
+                  <Link href="/quiz" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--yellow)", textDecoration: "none" }}>
+                    Take your first quiz →
+                  </Link>
                 </div>
-              </div>
-            ))}
+              )
+            }
           </div>
         </div>
 

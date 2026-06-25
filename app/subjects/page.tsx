@@ -5,10 +5,6 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { BookOpen, ChevronRight } from "lucide-react";
 
-export const metadata = {
-  title: "All Subjects – PrepGenie",
-  description: "Browse all JAMB subjects available on PrepGenie.",
-};
 
 export default function SubjectsPage() {
   return (
@@ -48,10 +44,8 @@ export default function SubjectsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1.4rem" }} className="subjects-index-grid">
             {subjects.map(subject => (
               <div key={subject.slug}
-                className="subject-index-card"
-                style={{ background: "white", borderRadius: "var(--radius)", overflow: "hidden", transition: "transform .25s" }}
-                onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-4px)")}
-                onMouseLeave={e => (e.currentTarget.style.transform = "translateY(0)")}>
+                className="subject-index-card subject-card-hover"
+                style={{ background: "white", borderRadius: "var(--radius)", overflow: "hidden", transition: "transform .25s" }}>
 
                 {/* Image */}
                 <div style={{ position: "relative", height: 180 }}>
@@ -78,8 +72,7 @@ export default function SubjectsPage() {
 
                   <Link href={`/subjects/${subject.slug}`}
                     style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "100%", padding: ".46rem 1rem", borderRadius: 6, background: subject.accent, color: "white", fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: ".78rem", textDecoration: "none", transition: "opacity .2s" }}
-                    onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => (e.currentTarget.style.opacity = ".85")}
-                    onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => (e.currentTarget.style.opacity = "1")}>
+                    >
                     View Subject →
                   </Link>
                 </div>

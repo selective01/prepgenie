@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
+import { useAuth } from "@/contexts/AuthContext";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 import {
   Send, Paperclip, RotateCcw, MoreHorizontal,
   Zap, Lightbulb, BookOpen, X,
@@ -21,28 +23,10 @@ interface Message {
 
 // ── data ─────────────────────────────────────────────────────────────────────
 
-const subjectChips = ["Chemistry", "Physics", "Biology", "English", "Maths"];
-
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id: 1, role: "ai", subject: "CHEMISTRY",
-    text: "Hello! I'm your PrepGenie Tutor. I noticed you were studying 'Organic Chemistry' earlier. Do you want to continue where we left off, or should we tackle a new JAMB topic today?",
-    time: "10:30 AM",
-  },
-  {
-    id: 2, role: "user", subject: "CHEMISTRY",
-    text: "Can you explain the difference between Alkanes and Alkenes in a simple way? I always get the bonding mixed up.",
-    time: "10:32 AM",
-  },
-  {
-    id: 3, role: "ai", subject: "CHEMISTRY",
-    text: "Great question! Think of it by their bonds:\n\n• Alkanes (Saturated): Only single bonds (C–C). They are less reactive.\n• Alkenes (Unsaturated): Have at least one double bond (C=C). This makes them more reactive!\n\nRemember: 'A–N–E' is single, 'E–N–E' is double. Ready for a quick practice question on this?",
-    time: "10:33 AM",
-  },
-];
+const DEFAULT_CHIPS = ["Chemistry", "Physics", "Biology", "English", "Mathematics"];
 
 const FREE_LIMIT = 20;
-const USED = 12;
+const USED = 0;
 
 // ── typing indicator ──────────────────────────────────────────────────────────
 
@@ -62,7 +46,7 @@ function TypingDots() {
 
 // ── message bubble ────────────────────────────────────────────────────────────
 
-function Bubble({ msg }: { msg: Message }) {
+function Bubble({ msg, initials }: { msg: Message; initials: string }) {
   const isAI = msg.role === "ai";
   return (
     <div style={{
@@ -82,7 +66,7 @@ function Bubble({ msg }: { msg: Message }) {
           width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
           background: "var(--yellow)", display: "grid", placeItems: "center",
         }}>
-          <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--navy)" }}>AJ</span>
+          <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--navy)" }}>{initials}</span>
         </div>
       )}
 
@@ -149,12 +133,14 @@ function OptionsMenu({ onClose, onClear, onUpgrade }: {
 
 export default function TutorPage() {
   const router                      = useRouter();
-  const [messages, setMessages]     = useState<Message[]>(INITIAL_MESSAGES);
+  const { token, user }             = useAuth();
+  const [messages, setMessages]     = useState<Message[]>([]);
   const [input, setInput]           = useState("");
   const [activeSubject, setActive]  = useState("Chemistry");
   const [isTyping, setIsTyping]     = useState(false);
   const [usedQueries, setUsed]      = useState(USED);
   const [showTopMenu, setShowTopMenu] = useState(false);
+  const greetedRef                  = useRef(false);
   const bottomRef                   = useRef<HTMLDivElement>(null);
   const textareaRef                 = useRef<HTMLTextAreaElement>(null);
   const fileInputRef                = useRef<HTMLInputElement>(null);
@@ -165,6 +151,38 @@ export default function TutorPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // Genie opening greeting on first load
+  useEffect(() => {
+    if (greetedRef.current) return;
+    greetedRef.current = true;
+    const authToken = token || (typeof window !== "undefined" ? localStorage.getItem("pg_token") : null);
+    if (!authToken) return;
+
+    // defer state updates into async callbacks only — no direct setState in effect body
+    const greet = async () => {
+      const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setIsTyping(true);
+      try {
+        const res  = await fetch(`${API}/api/tutor/chat`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+          body:    JSON.stringify({ message: "Say a short friendly welcome to the student. Mention their subjects if known. Keep it under 2 sentences.", subject: "General" }),
+        });
+        const d = await res.json();
+        setIsTyping(false);
+        if (d.success) {
+          setMessages([{ id: Date.now(), role: "ai", subject: "GENIE", text: d.message, time: now }]);
+          if (d.queriesUsed !== undefined) setUsed(d.queriesUsed);
+        }
+      } catch {
+        setIsTyping(false);
+        setMessages([{ id: Date.now(), role: "ai", subject: "GENIE", text: "Hi! I'm Genie, your PrepGenie AI Tutor. Ask me anything about your JAMB subjects and I'll help you prepare. What would you like to study today?", time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+      }
+    };
+
+    greet();
+  }, [token]);
 
   // close top menu on outside click
   useEffect(() => {
@@ -189,36 +207,69 @@ export default function TutorPage() {
     }, 0);
   }
 
-  function sendMessage() {
-    if (!input.trim() || limitHit) return;
+  async function sendMessage() {
+    const authToken = token || localStorage.getItem("pg_token");
+    if (!input.trim() || limitHit || !authToken) return;
     const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const text = input.trim();
     const userMsg: Message = {
       id: Date.now(), role: "user",
       subject: activeSubject.toUpperCase(),
-      text: input.trim(), time: now,
+      text, time: now,
     };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
-    setUsed(u => u + 1);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-
     setIsTyping(true);
-    setTimeout(() => {
+
+    try {
+      const res  = await fetch(`${API}/api/tutor/chat`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body:    JSON.stringify({ message: text, subject: activeSubject }),
+      });
+      const data = await res.json();
+      setIsTyping(false);
+
+      // update query counter from real API
+      if (data.queriesUsed !== undefined) setUsed(data.queriesUsed);
+
+      if (!data.success && data.limitReached) {
+        setUsed(FREE_LIMIT); // mark as limit hit
+      }
+
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1, role: "ai",
+        subject: activeSubject.toUpperCase(),
+        text: data.success ? data.message : (data.limitReached
+          ? "You've reached your daily message limit. Upgrade to Premium for unlimited access."
+          : "Sorry, I couldn't get a response. Please try again."),
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      }]);
+    } catch (err) {
+      console.error("Tutor API error:", err);
       setIsTyping(false);
       setMessages(prev => [...prev, {
         id: Date.now() + 1, role: "ai",
         subject: activeSubject.toUpperCase(),
-        text: "That's a great question! Let me break that down for you clearly. This is a common area where JAMB candidates lose marks, so understanding it thoroughly will give you an edge in the exam.",
+        text: "I'm having trouble connecting right now. Check the browser console for details.",
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       }]);
-    }, 2000);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   }
 
-  function clearConversation() {
+  async function clearConversation() {
+    const clearToken = token || localStorage.getItem("pg_token");
+    if (clearToken) {
+      await fetch(`${API}/api/tutor/history`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${clearToken}` },
+      }).catch(() => {});
+    }
     setMessages([{
       id: Date.now(), role: "ai", subject: activeSubject.toUpperCase(),
       text: "Conversation cleared. What would you like to study?",
@@ -252,9 +303,15 @@ export default function TutorPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <div style={{
               width: 34, height: 34, borderRadius: 10,
-              background: "var(--off-white)", display: "grid", placeItems: "center",
+              background: "var(--navy)", display: "grid", placeItems: "center",
             }}>
-              <Zap size={17} color="var(--navy)" strokeWidth={2} />
+              <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+                <rect x="14.5" y="24" width="3" height="5" rx="1" fill="var(--yellow)" opacity=".9"/>
+                <rect x="11" y="28" width="10" height="2" rx="1" fill="var(--yellow)" opacity=".9"/>
+                <rect x="15.2" y="15" width="1.6" height="10" rx=".8" fill="var(--yellow)" opacity=".9"/>
+                <path d="M5 15 L13.5 6 L18.5 6 L27 15 Z" fill="var(--yellow)"/>
+                <line x1="6" y1="15" x2="26" y2="15" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".5"/>
+              </svg>
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--navy)" }}>AI Tutor</div>
@@ -303,6 +360,7 @@ export default function TutorPage() {
         </div>
 
         {/* ── subject header (desktop) ── */}
+        {messages.length === 0 && (
         <div style={{ padding: "1.5rem 2rem 0", background: "var(--off-white)", flexShrink: 0 }} className="tutor-subject-header">
           <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
             <div style={{
@@ -342,10 +400,11 @@ export default function TutorPage() {
             ))}
           </div>
         </div>
+        )}
 
         {/* ── message list ── */}
         <div style={{
-          flex: 1, overflowY: "auto", padding: "1.25rem 1.75rem",
+          flex: 1, minHeight: 0, overflowY: "auto", padding: "1.25rem 1.75rem",
           background: "var(--off-white)", display: "flex", flexDirection: "column",
         }}>
           <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
@@ -355,7 +414,7 @@ export default function TutorPage() {
             }}>TODAY</span>
           </div>
 
-          {messages.map(msg => <Bubble key={msg.id} msg={msg} />)}
+          {messages.map(msg => <Bubble key={msg.id} msg={msg} initials={user?.name?.split(" ").filter(Boolean).map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "U"} />)}
 
           {isTyping && (
             <div style={{ display: "flex", alignItems: "flex-end", gap: "0.6rem", marginBottom: "1.25rem" }}>
@@ -404,7 +463,7 @@ export default function TutorPage() {
 
           {/* subject chips */}
           <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.65rem", overflowX: "auto", paddingBottom: 2 }}>
-            {subjectChips.map(s => (
+            {(user?.subjects?.length ? user.subjects.map(s => s === "Use of English" ? "English" : s) : DEFAULT_CHIPS).map(s => (
               <button
                 key={s}
                 onClick={() => { setActive(s); focusInput(); }}
@@ -527,7 +586,7 @@ export default function TutorPage() {
       </div>
 
       <style>{`
-        .tutor-root { height: 100vh; }
+        .tutor-root { height: 100vh; display: flex; flex-direction: column; }
         @keyframes typingBounce {
           0%, 60%, 100% { transform: translateY(0); }
           30% { transform: translateY(-6px); }

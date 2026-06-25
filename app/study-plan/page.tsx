@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 import {
   Trophy, CalendarDays, Clock, ChevronRight,
   Flag, CheckCircle2, Circle, Zap, MoreHorizontal,
@@ -9,18 +11,23 @@ import {
 
 // ── mock data ─────────────────────────────────────────────────────────────────
 
-const DAYS_TO_EXAM = 24;
-const TODAY_INDEX  = 2; // Wednesday
+// Generate real week days starting from this Monday
+function getWeekDays() {
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  const labels = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
+  return labels.map((label, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return { label, date: d.getDate() };
+  });
+}
 
-const weekDays = [
-  { label: "MON", date: 12 },
-  { label: "TUE", date: 13 },
-  { label: "WED", date: 14 },
-  { label: "THU", date: 15 },
-  { label: "FRI", date: 16 },
-  { label: "SAT", date: 17 },
-  { label: "SUN", date: 18 },
-];
+const weekDays = getWeekDays();
+const TODAY_JS = new Date().getDay(); // 0=Sun
+const TODAY_INDEX = TODAY_JS === 0 ? 6 : TODAY_JS - 1; // convert to 0=Mon
 
 const subjectColors: Record<string, string> = {
   Chemistry:   "#4a90d9",
@@ -31,12 +38,13 @@ const subjectColors: Record<string, string> = {
 };
 
 interface Task {
-  id: number;
+  id: number | string;
   subject: string;
   topic: string;
   duration: string;
   difficulty: "High" | "Medium" | "Low";
   done: boolean;
+  day?: number;
 }
 
 const INITIAL_TASKS: Task[] = [
@@ -125,16 +133,58 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
 
 export default function StudyPlanPage() {
   const router = useRouter();
-  const [tasks, setTasks]           = useState<Task[]>(INITIAL_TASKS);
-  const [activeDay, setActiveDay]   = useState(TODAY_INDEX);
+  const { token, user } = useAuth();
+  const [tasks, setTasks]         = useState<Task[]>(INITIAL_TASKS);
+  const [activeDay, setActiveDay] = useState(TODAY_INDEX);
+  const [loading, setLoading]     = useState(true);
+  const [planId, setPlanId]       = useState<string | null>(null);
+  const [milestoneData, setMilestoneData] = useState(milestones);
 
-  const completed  = tasks.filter(t => t.done).length;
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API}/api/plan`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setPlanId(data.plan.id);
+          const today = new Date().getDay(); // 0=Sun, convert to 0=Mon
+          const todayIndex = today === 0 ? 6 : today - 1;
+          setActiveDay(todayIndex);
+          const apiTasks: Task[] = data.plan.dailyTasks.map((t: {id: string; subject: string; topic: string; duration: string; difficulty: "High"|"Medium"|"Low"; day: number; done: boolean}) => ({
+            id: t.id, subject: t.subject, topic: t.topic,
+            duration: t.duration, difficulty: t.difficulty, done: t.done, day: t.day,
+          }));
+          if (apiTasks.length) setTasks(apiTasks);
+          if (data.plan.milestones?.length) setMilestoneData(data.plan.milestones.map((m: {label:string;name:string;date:string;done:boolean}) => ({
+            ...m, icon: milestones.find(x => x.label === m.label)?.icon || CheckCircle2,
+          })));
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const hasDayData  = tasks.some(t => t.day !== undefined);
+  const dayTasks    = hasDayData
+    ? tasks.filter(t => t.day === activeDay)
+    : tasks; // fallback: show all tasks if plan has no day data
+  const completed   = tasks.filter(t => t.done).length;
+  const daysToExam  = user?.examDate
+    ? Math.max(0, Math.ceil((new Date(user.examDate).getTime() - new Date().getTime()) / 86400000))
+    : null;
   const total      = tasks.length;
   const progress   = Math.round((completed / total) * 100);
   const currentMilestone = milestones.find(m => !m.done) ?? milestones[milestones.length - 1];
 
-  function toggleTask(id: number) {
+  async function toggleTask(id: string | number) {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    if (!token || !planId) return;
+    try {
+      await fetch(`${API}/api/plan/task/${id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) { console.error("Toggle task error:", err); }
   }
 
   return (
@@ -153,7 +203,7 @@ export default function StudyPlanPage() {
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem" }}>
               <span style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(2rem,5vw,3rem)", fontWeight: 800, color: "var(--yellow)", lineHeight: 1 }}>
-                {DAYS_TO_EXAM}
+                {daysToExam ?? "--"}
               </span>
               <span style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(1.1rem,3vw,1.8rem)", fontWeight: 700, color: "rgba(255,255,255,.7)" }}>
                 Days
@@ -248,10 +298,33 @@ export default function StudyPlanPage() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-              {tasks.map(task => (
-                <TaskCard key={task.id} task={task} onToggle={() => toggleTask(task.id)} />
+              {dayTasks.map(task => (
+                <TaskCard key={String(task.id)} task={task} onToggle={() => toggleTask(task.id)} />
               ))}
             </div>
+
+            {/* regenerate if no tasks */}
+            {!loading && dayTasks.length === 0 && (
+              <div style={{ textAlign: "center", padding: "1.5rem", color: "var(--muted)", fontSize: "0.88rem" }}>
+                No tasks for this day.{" "}
+                <button
+                  onClick={async () => {
+                    if (!token) return;
+                    const res = await fetch(`${API}/api/plan/generate`, { method: "POST", headers: { Authorization: `Bearer ${token}` }});
+                    const data = await res.json();
+                    if (data.success) {
+                      const apiTasks: Task[] = data.plan.dailyTasks.map((t: {id: string; subject: string; topic: string; duration: string; difficulty: "High"|"Medium"|"Low"; day: number; done: boolean}) => ({
+                        id: t.id, subject: t.subject, topic: t.topic, duration: t.duration, difficulty: t.difficulty, done: t.done, day: t.day,
+                      }));
+                      setTasks(apiTasks);
+                    }
+                  }}
+                  style={{ color: "var(--yellow-dark)", fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontSize: "0.88rem" }}
+                >
+                  Regenerate plan
+                </button>
+              </div>
+            )}
 
             {/* add topic */}
             <button
@@ -299,7 +372,7 @@ export default function StudyPlanPage() {
                 }} />
               </div>
 
-              {milestones.map((m, i) => {
+              {milestoneData.map((m, i) => {
                 const Icon = m.icon;
                 return (
                   <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", zIndex: 1, flex: 1 }}>

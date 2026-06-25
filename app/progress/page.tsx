@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 import {
   TrendingUp, AlertCircle, Flame, CalendarDays,
   ChevronRight, Download, SlidersHorizontal, ArrowRight,
@@ -117,11 +119,99 @@ function ScoreChart({ data }: { data: { day: string; score: number }[] }) {
 
 export default function ProgressPage() {
   const router  = useRouter();
+  const { token } = useAuth();
   const [range, setRange] = useState<"7" | "30">("7");
-  const data    = range === "7" ? SCORE_7D : SCORE_30D;
-  const latest  = data[data.length - 1].score;
-  const prev    = data[data.length - 2].score;
-  const change  = latest - prev;
+  const [apiData, setApiData] = useState<{
+    totalQuizzes: number; avgScore: number; currentStreak: number;
+    totalCorrect: number; totalWrong: number;
+    subjectBreakdown: { subject: string; avgScore: number; quizzes: number }[];
+    weakAreas: { subject: string; topic: string; lastAccuracy: number }[];
+    recentHistory: { score: number; takenAt: string; subject: string }[];
+    streakDays: { date: string; studied: boolean }[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API}/api/progress`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { if (d.success) setApiData(d.data); })
+      .catch(console.error);
+  }, [token]);
+  // build chart data from real quiz history or fall back to mock
+  const chartData = apiData?.recentHistory?.length
+    ? apiData.recentHistory.map((h, i) => ({
+        day: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i % 7],
+        score: h.score,
+      }))
+    : (range === "7" ? SCORE_7D : SCORE_30D);
+
+  const data   = chartData;
+  const latest = data[data.length - 1]?.score ?? 0;
+  const prev   = data[data.length - 2]?.score ?? 0;
+  const change = latest - prev;
+
+  // use real subject data or fall back to mock
+  const subjectData = apiData?.subjectBreakdown?.length
+    ? apiData.subjectBreakdown.map(s => ({ name: s.subject, score: s.avgScore, icon: "📚" }))
+    : SUBJECTS;
+
+  const weakAreasData = apiData?.weakAreas?.length
+    ? apiData.weakAreas.map(w => ({ topic: w.topic, subject: w.subject, accuracy: 15, lastQuiz: `${w.lastAccuracy}%` }))
+    : WEAK_AREAS;
+
+  const streakDays  = apiData?.currentStreak ?? STREAK_DAYS;
+  const totalDays   = apiData?.streakDays?.length ?? TOTAL_DAYS;
+  const prepScore   = apiData ? Math.round((apiData.avgScore / 100) * 400 + (apiData.totalCorrect * 2)) : PREP_SCORE;
+
+  // build heatmap from real streak days
+  const heatmap = apiData?.streakDays
+    ? (() => {
+        const cells = Array(90).fill(false);
+        const today = new Date();
+        apiData.streakDays.forEach(d => {
+          const diff = Math.floor((today.getTime() - new Date(d.date).getTime()) / 86400000);
+          if (diff >= 0 && diff < 90) cells[89 - diff] = d.studied;
+        });
+        return cells;
+      })()
+    : HEATMAP;
+
+
+  function exportReport() {
+    const rows: (string | number)[][] = [
+      ["PrepGenie Progress Report"],
+      [`Generated: ${new Date().toLocaleDateString()}`],
+      [""],
+      ["OVERALL SUMMARY"],
+      ["Total Quizzes",  apiData?.totalQuizzes ?? 0],
+      ["Average Score",  `${apiData?.avgScore ?? 0}%`],
+      ["Total Correct",  apiData?.totalCorrect ?? 0],
+      ["Total Wrong",    apiData?.totalWrong ?? 0],
+      ["Current Streak", `${apiData?.currentStreak ?? 0} days`],
+      [""],
+      ["SUBJECT BREAKDOWN"],
+      ["Subject", "Avg Score", "Quizzes Taken"],
+      ...subjectData.map(s => [s.name, `${s.score}%`, apiData?.subjectBreakdown?.find(b => b.subject === s.name)?.quizzes ?? 0]),
+      [""],
+      ["WEAK AREAS (below 60%)"],
+      ["Topic", "Subject", "Last Accuracy"],
+      ...weakAreasData.map(w => [w.topic, w.subject, w.lastQuiz]),
+      [""],
+      ["RECENT QUIZ HISTORY"],
+      ["Subject", "Score", "Date"],
+      ...(apiData?.recentHistory ?? []).map(h => [
+        h.subject, `${h.score}%`, new Date(h.takenAt).toLocaleDateString(),
+      ]),
+    ];
+    const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = `PrepGenie_Report_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <AppShell>
@@ -141,7 +231,7 @@ export default function ProgressPage() {
             <button style={{ display: "flex", alignItems: "center", gap: 6, background: "white", border: "1px solid var(--border)", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 600, color: "var(--navy)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
               <SlidersHorizontal size={14} strokeWidth={2} /> Filter Subjects
             </button>
-            <button style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--navy)", border: "none", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 700, color: "white", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+            <button onClick={exportReport} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--navy)", border: "none", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 700, color: "white", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
               <Download size={14} strokeWidth={2} /> Export Report
             </button>
           </div>
@@ -188,7 +278,7 @@ export default function ProgressPage() {
             <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--navy)", marginBottom: 4 }}>Subject Mastery</div>
             <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: "1.25rem" }}>Performance across core subjects</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {SUBJECTS.map(({ name, score }) => {
+              {subjectData.map(({ name, score }) => {
                 const isWeak = score < 60;
                 return (
                   <div key={name}>
@@ -223,7 +313,7 @@ export default function ProgressPage() {
             <p style={{ fontSize: "0.78rem", color: "var(--muted)", marginBottom: "1.1rem" }}>Focus on these to boost your overall score</p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-              {WEAK_AREAS.map(({ topic, subject, accuracy, lastQuiz }) => (
+              {weakAreasData.map(({ topic, subject, accuracy, lastQuiz }) => (
                 <div key={topic} style={{
                   border: "1.5px solid #ef4444", borderRadius: "var(--radius-sm)",
                   padding: "0.85rem 1rem",
@@ -263,7 +353,7 @@ export default function ProgressPage() {
                 <span style={{ fontWeight: 700, fontSize: "1rem", color: "white" }}>90-Day Streak</span>
               </div>
               <span style={{ fontFamily: "'Playfair Display',serif", fontSize: "1.1rem", fontWeight: 800, color: "var(--yellow)" }}>
-                {STREAK_DAYS} DAYS
+                {streakDays} DAYS
               </span>
             </div>
 
@@ -271,13 +361,13 @@ export default function ProgressPage() {
             <div style={{ display: "flex", gap: "1.25rem", marginBottom: "1rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <CalendarDays size={13} color="rgba(255,255,255,.4)" strokeWidth={2} />
-                <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.5)" }}>Total Days: {TOTAL_DAYS}</span>
+                <span style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.5)" }}>Total Days: {totalDays}</span>
               </div>
             </div>
 
             {/* heatmap grid */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(15, 1fr)", gap: 4, marginBottom: "0.85rem" }}>
-              {HEATMAP.map((active, i) => (
+              {heatmap.map((active, i) => (
                 <div key={i} style={{
                   aspectRatio: "1", borderRadius: 4,
                   background: active ? "var(--yellow)" : "rgba(255,255,255,.08)",
@@ -322,7 +412,7 @@ export default function ProgressPage() {
           <div>
             <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Prep Score</div>
             <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "2.2rem", fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
-              {PREP_SCORE}
+              {prepScore}
             </div>
           </div>
           <button

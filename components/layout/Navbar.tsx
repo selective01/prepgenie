@@ -2,15 +2,15 @@
 import { useState, useEffect } from "react";
 import { Menu, X, Phone, Mail, User, ChevronDown } from "lucide-react";
 
-function LampLogo({ color = "var(--navy)" }: { color?: string }) {
+function LampLogo({ size = 32 }: { size?: number }) {
   return (
-    <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
-      <rect x="14.5" y="24" width="3" height="5" rx="1" fill={color} opacity=".7"/>
-      <rect x="11" y="28" width="10" height="2" rx="1" fill={color} opacity=".7"/>
-      <rect x="15.2" y="15" width="1.6" height="10" rx=".8" fill={color} opacity=".8"/>
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect x="14.5" y="24" width="3" height="5" rx="1" fill="var(--navy)" opacity=".8"/>
+      <rect x="11" y="28" width="10" height="2" rx="1" fill="var(--navy)" opacity=".8"/>
+      <rect x="15.2" y="15" width="1.6" height="10" rx=".8" fill="var(--navy)" opacity=".9"/>
       <path d="M5 15 L13.5 6 L18.5 6 L27 15 Z" fill="var(--yellow)"/>
-      <line x1="6" y1="15" x2="26" y2="15" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity=".4"/>
-      <ellipse cx="16" cy="17" rx="5" ry="1.5" fill="var(--yellow)" opacity=".2"/>
+      <line x1="6" y1="15" x2="26" y2="15" stroke="var(--navy)" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/>
+      <ellipse cx="16" cy="17" rx="5" ry="1.5" fill="var(--yellow)" opacity=".25"/>
     </svg>
   );
 }
@@ -210,7 +210,7 @@ export default function Navbar() {
       <div className={`mobile-overlay ${menuOpen ? "mobile-overlay--open" : ""}`}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "1.1rem 5%", borderBottom: "1px solid var(--border)" }}>
           <a href="#home" onClick={handleClose} style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-            <LampLogo/>
+            <LampLogo />
             <span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: "1.2rem", color: "var(--navy)" }}>
               Prep<span style={{ color: "var(--yellow-dark)" }}>Genie</span>
             </span>

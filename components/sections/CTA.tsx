@@ -8,7 +8,6 @@ export default function CTA() {
 
       <div style={{ maxWidth:800, margin:"0 auto", textAlign:"center", position:"relative", zIndex:1 }}>
         <div className="reveal">
-          <div className="section-label" style={{ justifyContent:"center", color:"var(--yellow)" }}>Get Started Today</div>
           <h2 className="section-title-white">
             Your JAMB Success <span style={{ color:"var(--yellow)", fontStyle:"italic" }}>Starts Here.</span>
           </h2>

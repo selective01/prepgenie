@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -22,18 +23,24 @@ export interface AuthUser {
   examDate:         string | null;
   targetScore:      number;
   studyHoursPerDay: number;
+  profilePicture:   string | null;
+  notifications:    { email: boolean; push: boolean; digest: boolean } | null;
 }
 
 interface AuthContextValue {
-  user:      AuthUser | null;
-  token:     string | null;
-  loading:   boolean;
-  error:     string | null;
-  login:     (email: string, password: string) => Promise<void>;
-  register:  (name: string, email: string, password: string) => Promise<void>;
-  logout:    () => void;
-  updateUser:(data: Partial<AuthUser>) => Promise<void>;
-  clearError:() => void;
+  user:               AuthUser | null;
+  token:              string | null;
+  loading:            boolean;
+  error:              string | null;
+  login:              (email: string, password: string) => Promise<void>;
+  register:           (name: string, email: string, password: string) => Promise<void>;
+  logout:             () => void;
+  updateUser:         (data: Partial<AuthUser>) => Promise<void>;
+  changePassword:     (current: string, next: string) => Promise<{ success: boolean; message: string }>;
+  updateNotifications:(prefs: { email: boolean; push: boolean; digest: boolean }) => Promise<void>;
+  updateProfilePic:   (base64: string) => void;
+  deleteAccount:      () => Promise<void>;
+  clearError:         () => void;
 }
 
 // ── context ───────────────────────────────────────────────────────────────────
@@ -122,13 +129,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const router = useRouter();
+
   // ── logout ────────────────────────────────────────────────────────────────
   const logout = useCallback(() => {
     localStorage.removeItem("pg_token");
     removeCookie();
     setToken(null);
     setUser(null);
+    router.push("/login");
+  }, [router]);
+
+  // ── change password ──────────────────────────────────────────────────────────
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const res  = await fetch(`${API}/api/auth/password`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await res.json();
+    return { success: data.success, message: data.message };
+  }, [token]);
+
+  // ── update notifications ──────────────────────────────────────────────────────
+  const updateNotifications = useCallback(async (prefs: { email: boolean; push: boolean; digest: boolean }) => {
+    if (!token) return;
+    const res  = await fetch(`${API}/api/auth/notifications`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(prefs),
+    });
+    const data = await res.json();
+    if (data.success) setUser(prev => prev ? { ...prev, notifications: data.user.notifications } : prev);
+  }, [token]);
+
+  // ── update profile picture (state only — API call is in settings page) ──────
+  const updateProfilePic = useCallback((base64: string) => {
+    setUser(prev => prev ? { ...prev, profilePicture: base64 } : prev);
   }, []);
+
+  // ── delete account ────────────────────────────────────────────────────────────
+  const deleteAccount = useCallback(async () => {
+    if (!token) return;
+    await fetch(`${API}/api/auth/account`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    localStorage.removeItem("pg_token");
+    removeCookie();
+    setToken(null);
+    setUser(null);
+    router.push("/");
+  }, [token, router]);
 
   // ── update user ───────────────────────────────────────────────────────────
   const updateUser = useCallback(async (data: Partial<AuthUser>) => {
@@ -148,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearError = useCallback(() => setError(null), []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, error, login, register, logout, updateUser, clearError }}>
+    <AuthContext.Provider value={{ user, token, loading, error, login, register, logout, updateUser, changePassword, updateNotifications, updateProfilePic, deleteAccount, clearError }}>
       {children}
     </AuthContext.Provider>
   );

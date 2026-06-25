@@ -2,74 +2,31 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
-import { ChevronLeft, ChevronRight, Clock, HelpCircle, Zap } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { ChevronLeft, ChevronRight, Clock, HelpCircle, Zap, Loader2 } from "lucide-react";
 
-// ── mock data ─────────────────────────────────────────────────────────────────
+const API        = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const QUESTIONS_COUNT = 20;
+const MINS_PER_QUESTION = 2;
+const TOTAL_TIME = QUESTIONS_COUNT * MINS_PER_QUESTION * 60; // 40 mins
 
-const QUESTIONS = [
-  {
-    id: 1,
-    subject: "Physics",
-    topic: "Mechanics • Kinematics",
-    difficulty: "Hard",
-    text: "A car accelerates uniformly from rest to a speed of 20 m/s in 5 seconds. What is the distance covered by the car during this time interval?",
-    options: ["25 meters", "50 meters", "100 meters", "200 meters"],
-    correct: 1,
-    explanation: "Using s = ½at², where a = 20/5 = 4 m/s². Distance = ½ × 4 × 25 = 50 meters. Alternatively, s = (u+v)/2 × t = (0+20)/2 × 5 = 50 m.",
-  },
-  {
-    id: 2,
-    subject: "Chemistry",
-    topic: "Organic Chemistry",
-    difficulty: "Medium",
-    text: "Which of the following describes the primary difference between Alkanes and Alkenes?",
-    options: [
-      "Alkanes have double bonds; Alkenes have single bonds",
-      "Alkanes have single bonds (saturated); Alkenes have at least one double bond (unsaturated)",
-      "Alkanes are more reactive than Alkenes",
-      "Alkenes cannot undergo combustion reactions",
-    ],
-    correct: 1,
-    explanation: "Alkanes are saturated hydrocarbons with only single C–C bonds, making them less reactive. Alkenes contain at least one C=C double bond, making them unsaturated and more reactive.",
-  },
-  {
-    id: 3,
-    subject: "Mathematics",
-    topic: "Calculus II",
-    difficulty: "Hard",
-    text: "Which of the following describes the relationship between a function's derivative and its local extrema in a continuous interval?",
-    options: [
-      "A local maximum occurs only if the second derivative is positive at that point.",
-      "If f′(c) = 0 and f′′(c) < 0, then f has a local maximum at x = c.",
-      "The derivative must be undefined at all points where a local minimum exists.",
-      "Local extrema can only exist where the function is strictly increasing.",
-    ],
-    correct: 1,
-    explanation: "By the Second Derivative Test: if f′(c) = 0 and f′′(c) < 0, the function has a local maximum at c. A negative second derivative indicates the curve is concave down at that point.",
-  },
-  {
-    id: 4,
-    subject: "Biology",
-    topic: "Cell Biology",
-    difficulty: "Easy",
-    text: "Which organelle is known as the powerhouse of the cell?",
-    options: ["Nucleus", "Mitochondria", "Ribosome", "Golgi apparatus"],
-    correct: 1,
-    explanation: "The mitochondria generates most of the cell's ATP through cellular respiration, earning its nickname as the powerhouse of the cell.",
-  },
-  {
-    id: 5,
-    subject: "Biology",
-    topic: "Cell Biology",
-    difficulty: "Medium",
-    text: "What is the primary function of Ribosomes?",
-    options: ["Energy production", "Protein synthesis", "DNA replication", "Lipid storage"],
-    correct: 1,
-    explanation: "Ribosomes are responsible for synthesizing proteins by translating messenger RNA (mRNA) into polypeptide chains.",
-  },
-];
+const SUBJECTS = ["Mathematics", "Physics", "Chemistry", "Biology", "English"];
 
-const TOTAL_TIME = 15 * 60; // 15 minutes in seconds
+// ── types ─────────────────────────────────────────────────────────────────────
+
+interface Question {
+  text:       string;
+  options:    string[];
+  subject:    string;
+  topic:      string;
+  difficulty: string;
+  // only present after submit
+  correct?:     number;
+  explanation?: string;
+  userAnswer?:  number | null;
+  isCorrect?:   boolean;
+  submitted?:   boolean;
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,36 +45,84 @@ const difficultyColor: Record<string, string> = {
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function QuizPage() {
-  const router = useRouter();
-  const [current, setCurrent]   = useState(0);
-  const [answers, setAnswers]   = useState<(number | null)[]>(Array(QUESTIONS.length).fill(null));
-  const [submitted, setSubmitted] = useState<boolean[]>(Array(QUESTIONS.length).fill(false));
-  const [started, setStarted]   = useState(false);
-  const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
+  const router       = useRouter();
+  const { token, user } = useAuth();
 
-  const q = QUESTIONS[current];
-  const selected = answers[current];
+  // quiz config state
+  const [started,    setStarted]   = useState(false);
+  const [subject,    setSubject]   = useState("Mathematics");
+  const [generating, setGenerating] = useState(false);
+  const [genError,   setGenError]  = useState("");
+
+  // quiz session state
+  const [quizId,    setQuizId]    = useState<string | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers,   setAnswers]   = useState<(number | null)[]>([]);
+  const [submitted, setSubmitted] = useState<boolean[]>([]);
+  const [current,   setCurrent]   = useState(0);
+  const [timeLeft,  setTimeLeft]  = useState(TOTAL_TIME);
+  const [finishing, setFinishing] = useState(false);
+
+  const q           = questions[current];
+  const selected    = answers[current];
   const isSubmitted = submitted[current];
 
-  // countdown — only runs after quiz is started
+  // countdown
   useEffect(() => {
     if (!started || timeLeft <= 0) return;
     const t = setInterval(() => setTimeLeft(s => s - 1), 1000);
     return () => clearInterval(t);
   }, [started, timeLeft]);
 
+  // auto-finish when timer hits 0
+  useEffect(() => {
+    if (started && timeLeft <= 0) finishQuiz();
+  }, [timeLeft, started]);
+
+  // ── generate quiz from API ─────────────────────────────────────────────────
+  async function startQuiz() {
+    setGenError("");
+    setGenerating(true);
+    try {
+      const res  = await fetch(`${API}/api/quiz/generate`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ subject, count: 20 }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      setQuizId(data.quizId);
+      setQuestions(data.questions);
+      setAnswers(Array(data.questions.length).fill(null));
+      setSubmitted(Array(data.questions.length).fill(false));
+      setCurrent(0);
+      setTimeLeft(TOTAL_TIME);
+      setStarted(true);
+    } catch (err: unknown) {
+      setGenError(err instanceof Error ? err.message : "Failed to generate quiz. Try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // ── select answer ──────────────────────────────────────────────────────────
   function selectOption(i: number) {
     if (isSubmitted) return;
     setAnswers(prev => { const a = [...prev]; a[current] = i; return a; });
   }
 
+  // ── submit current answer ─────────────────────────────────────────────────
   function submitAnswer() {
     if (selected === null) return;
     setSubmitted(prev => { const s = [...prev]; s[current] = true; return s; });
   }
 
   function goNext() {
-    if (current < QUESTIONS.length - 1) setCurrent(c => c + 1);
+    if (current < questions.length - 1) setCurrent(c => c + 1);
     else finishQuiz();
   }
 
@@ -125,37 +130,59 @@ export default function QuizPage() {
     if (current > 0) setCurrent(c => c - 1);
   }
 
-  function finishQuiz() {
-    // pass answers + submitted to results via sessionStorage (mock)
-    sessionStorage.setItem("quizAnswers", JSON.stringify(answers));
-    sessionStorage.setItem("quizSubmitted", JSON.stringify(submitted));
-    router.push("/quiz/results");
+  // ── finish quiz: submit to API ────────────────────────────────────────────
+  async function finishQuiz() {
+    if (!quizId || finishing) return;
+    setFinishing(true);
+    try {
+      const timeTaken = TOTAL_TIME - timeLeft;
+      const res = await fetch(`${API}/api/quiz/submit`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ quizId, answers, timeTaken }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+
+      // Store results in sessionStorage for the results page
+      sessionStorage.setItem("quizResults", JSON.stringify(data));
+      router.push("/quiz/results");
+    } catch (err) {
+      console.error("Finish quiz error:", err);
+      // fallback — go to results with local data
+      sessionStorage.setItem("quizResults", JSON.stringify({ questions, answers, submitted }));
+      router.push("/quiz/results");
+    } finally {
+      setFinishing(false);
+    }
   }
 
-  // option style
-  function optionStyle(i: number) {
+  // ── option styles ──────────────────────────────────────────────────────────
+  function optionStyle(i: number): React.CSSProperties {
     const base: React.CSSProperties = {
       display: "flex", alignItems: "center", gap: "1rem",
       padding: "1rem 1.25rem", borderRadius: "var(--radius-sm)",
       border: "1.5px solid var(--border)", background: "white",
       cursor: isSubmitted ? "default" : "pointer",
       transition: "border-color .15s, background .15s",
-      width: "100%", textAlign: "left",
-      fontFamily: "'DM Sans',sans-serif",
+      width: "100%", textAlign: "left", fontFamily: "'DM Sans',sans-serif",
     };
     if (!isSubmitted) {
       if (selected === i) return { ...base, borderColor: "var(--yellow-dark)", background: "var(--yellow-xlight)" };
       return base;
     }
-    if (i === q.correct) return { ...base, borderColor: "#22c55e", background: "#f0fdf4", cursor: "default" };
-    if (selected === i && i !== q.correct) return { ...base, borderColor: "#ef4444", background: "#fef2f2", cursor: "default" };
+    if (i === (q.correct ?? -1)) return { ...base, borderColor: "#22c55e", background: "#f0fdf4", cursor: "default" };
+    if (selected === i) return { ...base, borderColor: "#ef4444", background: "#fef2f2", cursor: "default" };
     return { ...base, opacity: 0.5, cursor: "default" };
   }
 
   function dotStyle(i: number): React.CSSProperties {
-    const isActive = i === current;
+    const isActive   = i === current;
     const isAnswered = answers[i] !== null;
-    const isDone = submitted[i];
+    const isDone     = submitted[i];
     return {
       width: isActive ? 32 : 28, height: isActive ? 32 : 28,
       borderRadius: "50%", display: "grid", placeItems: "center",
@@ -163,15 +190,14 @@ export default function QuizPage() {
       border: isActive ? "2px solid var(--navy)" : "1.5px solid var(--border)",
       background: isActive ? "var(--navy)" : isDone ? "var(--off-white)" : isAnswered ? "var(--yellow-light)" : "white",
       color: isActive ? "white" : "var(--navy)",
-      transition: "all .15s",
-      flexShrink: 0,
+      transition: "all .15s", flexShrink: 0,
     };
   }
 
   const isLowTime = timeLeft < 60;
-  const progress = ((current + 1) / QUESTIONS.length) * 100;
+  const progress  = questions.length ? ((current + 1) / questions.length) * 100 : 0;
 
-  // ── start screen ──
+  // ── START SCREEN ──────────────────────────────────────────────────────────
   if (!started) {
     return (
       <AppShell>
@@ -201,44 +227,65 @@ export default function QuizPage() {
             <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "1.6rem", fontWeight: 700, color: "var(--navy)", marginBottom: "0.4rem" }}>
               Ready to Start?
             </h1>
-            <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.6, marginBottom: "1.75rem" }}>
-              You&apos;re about to begin a JAMB-style quiz. The timer will start the moment you click Start Quiz.
+            <p style={{ fontSize: "0.88rem", color: "var(--muted)", lineHeight: 1.6, marginBottom: "1.5rem" }}>
+              The timer starts the moment you click Start Quiz.
             </p>
 
-            {/* quiz meta */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.75rem", marginBottom: "2rem" }}>
+            {/* subject selector */}
+            <div style={{ marginBottom: "1.25rem", textAlign: "left" }}>
+              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "var(--navy)", marginBottom: "0.4rem" }}>
+                Select Subject
+              </label>
+              <select
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                style={{
+                  width: "100%", padding: "0.72rem 0.9rem",
+                  border: "1.5px solid var(--border)", borderRadius: "var(--radius-sm)",
+                  fontFamily: "'DM Sans',sans-serif", fontSize: "0.9rem",
+                  color: "var(--navy)", background: "white", outline: "none",
+                }}
+              >
+                {(user?.subjects?.length ? user.subjects : SUBJECTS).map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* meta */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.75rem", marginBottom: "1.5rem" }}>
               {[
-                { label: "Questions", value: String(QUESTIONS.length) },
-                { label: "Time Limit", value: `${TOTAL_TIME / 60} mins` },
-                { label: "Subjects",   value: [...new Set(QUESTIONS.map(q => q.subject))].length + " subjects" },
+                { label: "Questions", value: "20"     },
+                { label: "Time Limit", value: `${QUESTIONS_COUNT * MINS_PER_QUESTION} min` },
+                { label: "Subject",    value: subject   },
               ].map(({ label, value }) => (
                 <div key={label} style={{ background: "var(--off-white)", borderRadius: "var(--radius-sm)", padding: "0.85rem 0.5rem" }}>
-                  <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "1.3rem", fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>{value.split(" ")[0]}</div>
+                  <div style={{ fontFamily: "'Playfair Display',serif", fontSize: "1rem", fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>{value}</div>
                   <div style={{ fontSize: "0.68rem", fontWeight: 600, color: "var(--muted)", marginTop: 3 }}>{label}</div>
                 </div>
               ))}
             </div>
 
-            {/* subjects list */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", justifyContent: "center", marginBottom: "2rem" }}>
-              {[...new Set(QUESTIONS.map(q => q.subject))].map(s => (
-                <span key={s} style={{ background: "var(--navy)", color: "white", fontSize: "0.72rem", fontWeight: 600, padding: "0.25rem 0.75rem", borderRadius: 20 }}>
-                  {s}
-                </span>
-              ))}
-            </div>
+            {genError && (
+              <p style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "0.75rem" }}>{genError}</p>
+            )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
               <button
-                onClick={() => setStarted(true)}
+                onClick={startQuiz}
+                disabled={generating}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   background: "var(--yellow)", color: "var(--navy)", border: "none",
                   borderRadius: 10, padding: "0.85rem", width: "100%",
-                  fontFamily: "'DM Sans',sans-serif", fontWeight: 800, fontSize: "0.95rem", cursor: "pointer",
+                  fontFamily: "'DM Sans',sans-serif", fontWeight: 800, fontSize: "0.95rem",
+                  cursor: generating ? "default" : "pointer", opacity: generating ? 0.7 : 1,
                 }}
               >
-                Start Quiz
+                {generating
+                  ? <><Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} /> Generating quiz...</>
+                  : <><Zap size={17} strokeWidth={2.5} /> Start Quiz</>
+                }
               </button>
               <button
                 onClick={() => router.push("/dashboard")}
@@ -253,9 +300,13 @@ export default function QuizPage() {
             </div>
           </div>
         </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </AppShell>
     );
   }
+
+  // ── QUIZ SCREEN ───────────────────────────────────────────────────────────
+  if (!q) return null;
 
   return (
     <AppShell>
@@ -266,13 +317,10 @@ export default function QuizPage() {
 
       <div style={{ padding: "1.5rem 2rem 2rem", maxWidth: 780, margin: "0 auto" }}>
 
-        {/* ── header ── */}
+        {/* header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.25rem", flexWrap: "wrap", gap: "0.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <button
-              onClick={() => router.push("/dashboard")}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "grid", placeItems: "center", color: "var(--muted)" }}
-            >
+            <button onClick={() => router.push("/dashboard")} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: "var(--muted)" }}>
               <ChevronLeft size={20} strokeWidth={2} />
             </button>
             <div>
@@ -280,10 +328,10 @@ export default function QuizPage() {
                 <span style={{ background: "var(--off-white)", color: "var(--navy)", fontSize: "0.72rem", fontWeight: 700, padding: "0.2rem 0.6rem", borderRadius: 6 }}>
                   {q.subject}
                 </span>
-                <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>Topic: {q.topic.split("•")[1]?.trim() ?? q.topic}</span>
+                {q.topic && <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>Topic: {q.topic}</span>}
               </div>
               <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--navy)" }}>
-                Question <span style={{ color: "var(--yellow-dark)" }}>{current + 1}</span> of {QUESTIONS.length}
+                Question <span style={{ color: "var(--yellow-dark)" }}>{current + 1}</span> of {questions.length}
               </div>
             </div>
           </div>
@@ -302,31 +350,24 @@ export default function QuizPage() {
           </div>
         </div>
 
-        {/* ── question dot map ── */}
+        {/* dot map */}
         <div style={{
           background: "white", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
           padding: "0.85rem 1rem", marginBottom: "1.25rem",
           display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center",
         }}>
-          {QUESTIONS.map((_, i) => (
-            <button key={i} onClick={() => setCurrent(i)} style={dotStyle(i)}>
-              {i + 1}
-            </button>
+          {questions.map((_, i) => (
+            <button key={i} onClick={() => setCurrent(i)} style={dotStyle(i)}>{i + 1}</button>
           ))}
         </div>
 
-        {/* ── question card ── */}
-        <div style={{
-          background: "white", borderRadius: "var(--radius)",
-          border: "1px solid var(--border)", padding: "1.5rem",
-          marginBottom: "1rem",
-        }}>
-          {/* difficulty + hint */}
+        {/* question card */}
+        <div style={{ background: "white", borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "1.5rem", marginBottom: "1rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 5,
-              border: `1.5px solid ${difficultyColor[q.difficulty]}`,
-              color: difficultyColor[q.difficulty],
+              border: `1.5px solid ${difficultyColor[q.difficulty] || "var(--muted)"}`,
+              color: difficultyColor[q.difficulty] || "var(--muted)",
               borderRadius: 20, padding: "0.2rem 0.65rem",
               fontSize: "0.72rem", fontWeight: 700,
             }}>
@@ -337,11 +378,8 @@ export default function QuizPage() {
             </button>
           </div>
 
-          {/* question text */}
           <div style={{ borderLeft: "3px solid var(--yellow-dark)", paddingLeft: "1rem", marginBottom: "1.5rem" }}>
-            <p style={{ fontSize: "1rem", fontWeight: 600, color: "var(--navy)", lineHeight: 1.7 }}>
-              {q.text}
-            </p>
+            <p style={{ fontSize: "1rem", fontWeight: 600, color: "var(--navy)", lineHeight: 1.7 }}>{q.text}</p>
           </div>
 
           {/* options */}
@@ -350,13 +388,12 @@ export default function QuizPage() {
               <button key={i} onClick={() => selectOption(i)} style={optionStyle(i)}>
                 <span style={{
                   width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                  background: isSubmitted && i === q.correct ? "#22c55e"
-                    : isSubmitted && selected === i && i !== q.correct ? "#ef4444"
+                  background: isSubmitted && i === (q.correct ?? -1) ? "#22c55e"
+                    : isSubmitted && selected === i ? "#ef4444"
                     : selected === i ? "var(--yellow-dark)" : "var(--off-white)",
-                  color: (isSubmitted && i === q.correct) || (isSubmitted && selected === i) || selected === i ? "white" : "var(--muted)",
+                  color: (isSubmitted || selected === i) ? "white" : "var(--muted)",
                   display: "grid", placeItems: "center",
-                  fontSize: "0.78rem", fontWeight: 800,
-                  transition: "background .15s",
+                  fontSize: "0.78rem", fontWeight: 800, transition: "background .15s",
                 }}>
                   {String.fromCharCode(65 + i)}
                 </span>
@@ -365,13 +402,9 @@ export default function QuizPage() {
             ))}
           </div>
 
-          {/* AI explanation (after submit) */}
-          {isSubmitted && (
-            <div style={{
-              marginTop: "1.25rem", background: "var(--off-white)",
-              borderRadius: "var(--radius-sm)", padding: "1rem",
-              borderLeft: "3px solid var(--yellow-dark)",
-            }}>
+          {/* explanation after submit */}
+          {isSubmitted && q.explanation && (
+            <div style={{ marginTop: "1.25rem", background: "var(--off-white)", borderRadius: "var(--radius-sm)", padding: "1rem", borderLeft: "3px solid var(--yellow-dark)" }}>
               <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--yellow-dark)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.4rem" }}>
                 AI Tutor Explanation
               </div>
@@ -380,58 +413,54 @@ export default function QuizPage() {
           )}
         </div>
 
-        {/* ── navigation ── */}
+        {/* navigation */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
           <button
-            onClick={goPrev}
-            disabled={current === 0}
+            onClick={goPrev} disabled={current === 0}
             style={{
               display: "flex", alignItems: "center", gap: 6,
-              background: "white", border: "1.5px solid var(--border)",
-              borderRadius: 10, padding: "0.75rem 1.25rem",
-              fontFamily: "'DM Sans',sans-serif", fontWeight: 600,
-              fontSize: "0.88rem", color: current === 0 ? "var(--muted)" : "var(--navy)",
-              cursor: current === 0 ? "default" : "pointer",
-              opacity: current === 0 ? 0.5 : 1,
+              background: "white", border: "1.5px solid var(--border)", borderRadius: 10, padding: "0.75rem 1.25rem",
+              fontFamily: "'DM Sans',sans-serif", fontWeight: 600, fontSize: "0.88rem",
+              color: current === 0 ? "var(--muted)" : "var(--navy)",
+              cursor: current === 0 ? "default" : "pointer", opacity: current === 0 ? 0.5 : 1,
             }}
           >
-            <ChevronLeft size={16} strokeWidth={2} /> Previous Question
+            <ChevronLeft size={16} strokeWidth={2} /> Previous
           </button>
 
           <div style={{ display: "flex", gap: "0.65rem" }}>
             {!isSubmitted && selected !== null && (
-              <button
-                onClick={submitAnswer}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  background: "var(--yellow)", color: "var(--navy)",
-                  border: "none", borderRadius: 10, padding: "0.75rem 1.5rem",
-                  fontFamily: "'DM Sans',sans-serif", fontWeight: 800,
-                  fontSize: "0.88rem", cursor: "pointer",
-                }}
-              >
+              <button onClick={submitAnswer} style={{
+                background: "var(--yellow)", color: "var(--navy)", border: "none",
+                borderRadius: 10, padding: "0.75rem 1.5rem",
+                fontFamily: "'DM Sans',sans-serif", fontWeight: 800, fontSize: "0.88rem", cursor: "pointer",
+              }}>
                 Submit Answer
               </button>
             )}
-
             {(isSubmitted || selected === null) && (
               <button
-                onClick={current === QUESTIONS.length - 1 ? finishQuiz : goNext}
+                onClick={current === questions.length - 1 ? finishQuiz : goNext}
+                disabled={finishing}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  background: "var(--navy)", color: "white",
-                  border: "none", borderRadius: 10, padding: "0.75rem 1.5rem",
-                  fontFamily: "'DM Sans',sans-serif", fontWeight: 800,
-                  fontSize: "0.88rem", cursor: "pointer",
+                  background: "var(--navy)", color: "white", border: "none",
+                  borderRadius: 10, padding: "0.75rem 1.5rem",
+                  fontFamily: "'DM Sans',sans-serif", fontWeight: 800, fontSize: "0.88rem",
+                  cursor: finishing ? "default" : "pointer",
                 }}
               >
-                {current === QUESTIONS.length - 1 ? "Finish Quiz" : "Next"}
-                <ChevronRight size={16} strokeWidth={2.5} />
+                {finishing
+                  ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                  : current === questions.length - 1 ? "Finish Quiz" : "Next"
+                }
+                {!finishing && <ChevronRight size={16} strokeWidth={2.5} />}
               </button>
             )}
           </div>
         </div>
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </AppShell>
   );
 }

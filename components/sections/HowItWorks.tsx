@@ -174,7 +174,6 @@ export default function HowItWorks() {
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "2.5rem", flexWrap: "wrap", gap: "1rem" }}>
             <div className="reveal-left">
-              <div className="section-label">Popular Courses</div>
               <h2 className="section-title" style={{ marginBottom: 0 }}>Our Popular JAMB Courses</h2>
             </div>
             <a href="/signup" className="btn-navy reveal-right" style={{ display: "inline-flex", alignItems: "center", gap: ".4rem" }}>

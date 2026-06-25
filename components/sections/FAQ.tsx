@@ -10,7 +10,6 @@ export default function FAQ() {
       <div style={{ maxWidth:800, margin:"0 auto" }}>
 
         <div className="reveal" style={{ textAlign:"center", marginBottom:"3.5rem" }}>
-          <div className="section-tag">FAQ</div>
           <h2 className="section-title">Questions? <span className="accent">We Have Answers.</span></h2>
           <p className="section-sub" style={{ margin:"0 auto" }}>Everything you need to know about PrepGenie before getting started.</p>
         </div>

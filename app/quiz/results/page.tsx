@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/layout/AppShell";
+import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, XCircle, MinusCircle, RotateCcw, PlusCircle, ChevronDown, ChevronUp, Lightbulb, Trophy } from "lucide-react";
 import Link from "next/link";
 
@@ -181,15 +182,28 @@ function QuestionRow({ q, userAnswer, wasSubmitted, index }: {
 
 export default function QuizResultsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  // Read quiz results directly from sessionStorage — no useEffect needed
+  const results = (() => {
+    if (typeof window === "undefined") return null;
+    const stored = sessionStorage.getItem("quizResults");
+    if (!stored) return null;
+    try {
+      const data = JSON.parse(stored);
+      if (data.questions && data.score !== undefined) return data;
+    } catch { /* ignore */ }
+    return null;
+  })();
 
-  // use mock data (in real app would read from sessionStorage/API)
+  // fallback to mock while loading
   const answers   = MOCK_ANSWERS;
   const submitted = MOCK_SUBMITTED;
 
-  const correct = answers.filter((a, i) => submitted[i] && a === QUESTIONS[i].correct).length;
-  const wrong   = answers.filter((a, i) => submitted[i] && a !== null && a !== QUESTIONS[i].correct).length;
-  const skipped = QUESTIONS.length - correct - wrong;
-  const score   = Math.round((correct / QUESTIONS.length) * 100);
+  const correct = results?.correct ?? answers.filter((a, i) => submitted[i] && a === QUESTIONS[i].correct).length;
+  const wrong   = results?.wrong   ?? answers.filter((a, i) => submitted[i] && a !== null && a !== QUESTIONS[i].correct).length;
+  const skipped = results?.skipped ?? (QUESTIONS.length - correct - wrong);
+  const score   = results?.score   ?? Math.round((correct / QUESTIONS.length) * 100);
+  const displayQuestions = results?.questions ?? QUESTIONS;
 
   const getMessage = () => {
     if (score >= 80) return { title: "Great Job, Alex!", sub: "Biology Mastery Level: Expert", desc: "You've mastered the basics of Cell Biology! Keep focusing on Mitochondria-related questions to hit 100%." };
@@ -256,9 +270,9 @@ export default function QuizResultsPage() {
             <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>{QUESTIONS.length} Questions</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-            {QUESTIONS.map((q, i) => (
+            {displayQuestions.map((q: typeof QUESTIONS[0], i: number) => (
               <QuestionRow
-                key={q.id}
+                key={i}
                 q={q}
                 userAnswer={answers[i]}
                 wasSubmitted={submitted[i]}

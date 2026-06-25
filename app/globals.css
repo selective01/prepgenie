@@ -79,3 +79,11 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-track{background:var(--off-white);}
 ::-webkit-scrollbar-thumb{background:var(--yellow);border-radius:4px;}
+
+/* ── Subject detail topic card hover ─────────────────────────── */
+.topic-card-hover { transition: transform .25s; }
+.topic-card-hover:hover { transform: translateY(-4px); }
+
+/* ── Subjects page card hover ─────────────────────────────────── */
+.subject-card-hover { transition: transform .25s; }
+.subject-card-hover:hover { transform: translateY(-4px); }

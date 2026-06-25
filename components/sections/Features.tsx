@@ -162,7 +162,6 @@ export default function Features() {
         <div style={{ maxWidth:1280, margin:"0 auto", display:"grid", gridTemplateColumns:"1fr 2fr", gap:"3rem", alignItems:"start", position:"relative", zIndex:1 }} className="subjects-grid">
 
           <div className="reveal-left">
-            <div className="section-label">Courses Categories</div>
             <h2 className="section-title">Explore Top<br/>JAMB Subjects</h2>
             <p className="section-sub" style={{ marginBottom:"2rem" }}>Choose your subjects and start practicing with thousands of past questions today.</p>
             <SmartAuthLink loggedInHref="/subjects" loggedOutHref="/signup" className="btn-navy">
@@ -239,7 +238,6 @@ export default function Features() {
 
           {/* Right content */}
           <div className="reveal-right">
-            <div className="section-label">Why Choose Us</div>
             <h2 className="section-title">Thousands Of Students Around Nigeria Ready To Score Higher.</h2>
             <p className="section-sub" style={{ marginBottom:"2rem" }}>
               PrepGenie combines a comprehensive past questions database with AI-powered explanations to help every JAMB candidate reach their full potential.

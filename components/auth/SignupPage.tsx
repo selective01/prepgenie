@@ -104,8 +104,15 @@ export default function AuthCard({ mode }: { mode: Mode }) {
               <div className="auth-slant" />
               <div className="auth-form-inner">
                 <div className="auth-header-row">
-                  <Link href="/" className="auth-logo">
-                    Prep<span style={{ color: "#d4a800" }}>Genie</span>
+                  <Link href="/" className="auth-logo" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+                    <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+                      <rect x="14.5" y="24" width="3" height="5" rx="1" fill="#0D1B3E" opacity=".8"/>
+                      <rect x="11" y="28" width="10" height="2" rx="1" fill="#0D1B3E" opacity=".8"/>
+                      <rect x="15.2" y="15" width="1.6" height="10" rx=".8" fill="#0D1B3E" opacity=".9"/>
+                      <path d="M5 15 L13.5 6 L18.5 6 L27 15 Z" fill="#F5C200"/>
+                      <line x1="6" y1="15" x2="26" y2="15" stroke="#0D1B3E" strokeWidth="1.5" strokeLinecap="round" opacity=".4"/>
+                    </svg>
+                    <span style={{ fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: "1.1rem", color: "#0D1B3E" }}>Prep<span style={{ color: "#d4a800" }}>Genie</span></span>
                   </Link>
                   <div style={{ width: 48 }} />
                 </div>
