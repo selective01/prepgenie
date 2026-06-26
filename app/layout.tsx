@@ -3,10 +3,27 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://prepgenie.ng"),
+  metadataBase: new URL("https://prepgenie-tawny.vercel.app"),
   title: "PrepGenie – AI-Powered JAMB Preparation",
-  description: "Ace your JAMB exams with AI-powered practice questions, instant explanations, and personalized study plans.",
-  keywords: "JAMB preparation, JAMB practice, UTME, Nigeria exam prep",
+  description: "Ace your JAMB exams with AI-powered tutoring, smart practice questions, instant explanations, and personalized study plans. The smartest way to prepare for JAMB.",
+  keywords: "JAMB preparation, JAMB practice, UTME, Nigeria exam prep, AI tutor, JAMB 2025",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
+  openGraph: {
+    title: "PrepGenie – AI-Powered JAMB Preparation",
+    description: "Study smarter, pass faster. AI tutoring, smart quizzes, and personalized study plans for JAMB.",
+    url: "https://prepgenie-tawny.vercel.app",
+    siteName: "PrepGenie",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PrepGenie – AI-Powered JAMB Preparation",
+    description: "Study smarter, pass faster. AI tutoring, smart quizzes, and personalized study plans for JAMB.",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

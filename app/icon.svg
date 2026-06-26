@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Navy background -->
+  <rect width="32" height="32" rx="8" fill="#0D1B3E"/>
+  
+  <!-- Lamp base/stem -->
+  <rect x="15.2" y="18" width="1.6" height="7" rx="0.8" fill="#F5C200"/>
+  
+  <!-- Lamp base plate -->
+  <rect x="12" y="24.5" width="8" height="1.5" rx="0.75" fill="#F5C200"/>
+  
+  <!-- Lamp shade -->
+  <path d="M9 18 L13.5 9 L18.5 9 L23 18 Z" fill="#F5C200"/>
+  
+  <!-- Shade highlight -->
+  <path d="M9 18 L13.5 9 L14.5 9 L10.5 18 Z" fill="rgba(255,255,255,0.15)"/>
+  
+  <!-- Light glow line -->
+  <line x1="9.5" y1="18" x2="22.5" y2="18" stroke="white" stroke-width="1" stroke-linecap="round" opacity="0.3"/>
+  
+  <!-- Bulb glow -->
+  <circle cx="16" cy="18" r="1.5" fill="white" opacity="0.6"/>
+</svg>
