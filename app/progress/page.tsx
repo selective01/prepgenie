@@ -117,6 +117,8 @@ export default function ProgressPage() {
   const { token } = useAuth();
   const [range, setRange] = useState<"7" | "30">("7");
   const [dataLoading, setDataLoading] = useState(true);
+  const [filterSubject, setFilterSubject] = useState<string | null>(null);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [apiData, setApiData] = useState<{
     totalQuizzes: number; avgScore: number; currentStreak: number;
     totalCorrect: number; totalWrong: number;
@@ -148,9 +150,10 @@ export default function ProgressPage() {
   const change = latest - prev;
 
   // use real subject data or fall back to mock
-  const subjectData = apiData?.subjectBreakdown?.length
+  const subjectData = (apiData?.subjectBreakdown?.length
     ? apiData.subjectBreakdown.map(s => ({ name: s.subject, score: s.avgScore, icon: "📚" }))
-    : SUBJECTS;
+    : SUBJECTS
+  ).filter(s => !filterSubject || s.name === filterSubject);
 
   const weakAreasData = apiData?.weakAreas?.length
     ? apiData.weakAreas.map(w => ({ topic: w.topic, subject: w.subject, accuracy: 15, lastQuiz: `${w.lastAccuracy}%` }))
@@ -234,9 +237,19 @@ export default function ProgressPage() {
             </p>
           </div>
           <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-            <button style={{ display: "flex", alignItems: "center", gap: 6, background: "white", border: "1px solid var(--border)", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 600, color: "var(--navy)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
-              <SlidersHorizontal size={14} strokeWidth={2} /> Filter Subjects
-            </button>
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowFilterMenu(p => !p)} style={{ display: "flex", alignItems: "center", gap: 6, background: filterSubject ? "var(--navy)" : "white", border: "1px solid var(--border)", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 600, color: filterSubject ? "white" : "var(--navy)", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
+                <SlidersHorizontal size={14} strokeWidth={2} /> {filterSubject ?? "Filter Subjects"}
+              </button>
+              {showFilterMenu && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, background: "white", border: "1px solid var(--border)", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,.1)", zIndex: 50, minWidth: 160, overflow: "hidden" }}>
+                  <button onClick={() => { setFilterSubject(null); setShowFilterMenu(false); }} style={{ width: "100%", textAlign: "left", padding: "0.6rem 0.9rem", fontSize: "0.78rem", fontWeight: filterSubject === null ? 700 : 400, background: filterSubject === null ? "var(--yellow-xlight)" : "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", color: "var(--navy)" }}>All Subjects</button>
+                  {(apiData?.subjectBreakdown ?? []).map(s => (
+                    <button key={s.subject} onClick={() => { setFilterSubject(s.subject); setShowFilterMenu(false); }} style={{ width: "100%", textAlign: "left", padding: "0.6rem 0.9rem", fontSize: "0.78rem", fontWeight: filterSubject === s.subject ? 700 : 400, background: filterSubject === s.subject ? "var(--yellow-xlight)" : "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", color: "var(--navy)" }}>{s.subject}</button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button onClick={exportReport} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--navy)", border: "none", borderRadius: 8, padding: "0.5rem 0.9rem", fontSize: "0.78rem", fontWeight: 700, color: "white", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>
               <Download size={14} strokeWidth={2} /> Export Report
             </button>

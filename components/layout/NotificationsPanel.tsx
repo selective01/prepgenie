@@ -54,6 +54,16 @@ export default function NotificationsPanel() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  // Fetch on mount to show badge count immediately
+  useEffect(() => {
+    const t = token || localStorage.getItem("pg_token");
+    if (!t) return;
+    fetch(`${API}/api/notifications`, { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json())
+      .then(d => { if (d.success) setUnread(d.unread); })
+      .catch(() => {});
+  }, [token]);
+
   async function fetchNotifications() {
     const t = token || localStorage.getItem("pg_token");
     if (!t) return;
