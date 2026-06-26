@@ -206,9 +206,10 @@ export default function QuizResultsPage() {
   const displayQuestions = results?.questions ?? QUESTIONS;
 
   const getMessage = () => {
-    if (score >= 80) return { title: "Great Job, Alex!", sub: "Biology Mastery Level: Expert", desc: "You've mastered the basics of Cell Biology! Keep focusing on Mitochondria-related questions to hit 100%." };
-    if (score >= 60) return { title: "Excellent Effort, Alex!", sub: "Good progress!", desc: "You've shown strong mastery in Biology and Literature. Let's brush up on those History dates." };
-    return { title: "Keep Practising, Alex!", sub: "Room to grow!", desc: "Don't be discouraged — reviewing these explanations will help you improve next time." };
+    const name = user?.name?.split(" ")[0] ?? "there";
+    if (score >= 80) return { title: `Great Job, ${name}!`, sub: "Expert Level!", desc: "Outstanding work! Keep focusing on your weak areas to hit 100%." };
+    if (score >= 60) return { title: `Excellent Effort, ${name}!`, sub: "Good progress!", desc: "You're making strong progress. Review the questions you missed to keep improving." };
+    return { title: `Keep Practising, ${name}!`, sub: "Room to grow!", desc: "Don't be discouraged — reviewing these explanations will help you improve next time." };
   };
 
   const msg = getMessage();

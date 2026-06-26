@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import AppShell from "@/components/layout/AppShell";
+import NotificationsPanel from "@/components/layout/NotificationsPanel";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
@@ -121,6 +122,12 @@ export default function DashboardPage() {
 
   const focusTasks    = dashData?.todayTasks?.length ? dashData.todayTasks : tasks;
   const subjectPerf   = dashData?.subjectPerformance?.length ? dashData.subjectPerformance.map(s => ({ subject: s.subject, pct: s.avgScore })) : subjectPerformance;
+  const statCards     = dashData ? [
+    { label: "Day Streak",  value: String(dashData.stats.currentStreak),  sub: "days",    icon: Flame,         iconColor: "#f97316" },
+    { label: "Avg. Score",  value: `${dashData.stats.avgScore}%`,          sub: "overall", icon: Trophy,        iconColor: "#d4a800" },
+    { label: "Goals Met",   value: String(dashData.stats.goalsMet),       sub: "total",   icon: CheckCircle2,  iconColor: "#4a90d9" },
+    { label: "Ques. Done",  value: String(dashData.stats.totalCorrect),   sub: "correct", icon: ClipboardList, iconColor: "#8b5cf6" },
+  ] : stats;
 
   const daysLeft = dashData?.stats?.daysToExam
     ?? (user?.examDate ? Math.max(0, Math.ceil((new Date(user.examDate).getTime() - new Date().getTime()) / 86400000)) : null);
@@ -141,11 +148,7 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            {/* Bell */}
-            <button style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid var(--border)", background: "white", display: "grid", placeItems: "center", cursor: "pointer", position: "relative" }}>
-              <Bell size={17} color="var(--navy)" strokeWidth={2} />
-              <span style={{ position: "absolute", top: 7, right: 7, width: 7, height: 7, borderRadius: "50%", background: "#ef4444", border: "1.5px solid white" }} />
-            </button>
+            <NotificationsPanel />
             {/* Exam chip */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--navy)", color: "white", padding: "0.45rem 0.9rem", borderRadius: 20, fontSize: "0.78rem", fontWeight: 600 }}>
               <Clock size={13} strokeWidth={2} />
@@ -156,7 +159,7 @@ export default function DashboardPage() {
 
         {/* ── STAT CARDS ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "1rem", marginBottom: "1.75rem" }} className="stat-grid">
-          {stats.map(s => <StatCard key={s.label} {...s} />)}
+          {statCards.map(s => <StatCard key={s.label} {...s} />)}
         </div>
 
         {/* ── TODAY'S FOCUS + QUICK ACTIONS ── */}

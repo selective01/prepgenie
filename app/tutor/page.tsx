@@ -463,7 +463,10 @@ export default function TutorPage() {
 
           {/* subject chips */}
           <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.65rem", overflowX: "auto", paddingBottom: 2 }}>
-            {(user?.subjects?.length ? user.subjects.map(s => s === "Use of English" ? "English" : s) : DEFAULT_CHIPS).map(s => (
+            {[...new Set(user?.subjects?.length
+              ? user.subjects.map(s => s === "Use of English" ? "English" : s)
+              : DEFAULT_CHIPS
+            )].map(s => (
               <button
                 key={s}
                 onClick={() => { setActive(s); focusInput(); }}

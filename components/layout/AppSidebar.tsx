@@ -19,11 +19,11 @@ const navItems = [
 ];
 
 const bottomNavItems = [
-  { label: "Home",     href: "/dashboard",  icon: LayoutDashboard },
-  { label: "Plan",     href: "/study-plan", icon: BookMarked      },
-  { label: "Tutor",    href: "/tutor",      icon: MessageSquare   },
-  { label: "Stats",    href: "/progress",   icon: TrendingUp      },
-  { label: "Settings", href: "/settings",   icon: Settings        },
+  { label: "Home",  href: "/dashboard",  icon: LayoutDashboard },
+  { label: "Plan",  href: "/study-plan", icon: BookMarked      },
+  { label: "Tutor", href: "/tutor",      icon: MessageSquare   },
+  { label: "Stats", href: "/progress",   icon: TrendingUp      },
+  { label: "Menu",  href: null,          icon: Menu            },
 ];
 
 export default function AppSidebar() {
@@ -89,9 +89,13 @@ export default function AppSidebar() {
         {/* User */}
         <div style={{ padding: "1rem 0.75rem", borderTop: "1px solid rgba(255,255,255,.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", marginBottom: "0.75rem" }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--yellow)", display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--navy)" }}>{initials}</span>
-            </div>
+            {user?.profilePicture ? (
+              <img src={user.profilePicture} alt="Profile" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--yellow)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--navy)" }}>{initials}</span>
+              </div>
+            )}
             <div>
               <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "white", lineHeight: 1.2 }}>{user?.name ?? "User"}</div>
               <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.45)" }}>Free Plan</div>
@@ -111,6 +115,18 @@ export default function AppSidebar() {
       }}>
         {bottomNavItems.map(({ label, href, icon: Icon }) => {
           const active = pathname === href;
+          if (!href) {
+            return (
+              <button key={label} onClick={() => setDrawerOpen(true)} style={{
+                flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+                gap: 3, padding: "0.25rem 0", background: "none", border: "none", cursor: "pointer",
+                color: "var(--muted)",
+              }}>
+                <Icon size={20} strokeWidth={1.8} />
+                <span style={{ fontSize: "0.65rem", fontWeight: 400 }}>{label}</span>
+              </button>
+            );
+          }
           return (
             <Link key={href} href={href} style={{
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
@@ -123,18 +139,6 @@ export default function AppSidebar() {
           );
         })}
 
-        {/* Menu button — opens full drawer */}
-        <button
-          onClick={() => setDrawerOpen(true)}
-          style={{
-            flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-            gap: 3, padding: "0.25rem 0", background: "none", border: "none", cursor: "pointer",
-            color: "var(--muted)",
-          }}
-        >
-          <Menu size={20} strokeWidth={1.8} />
-          <span style={{ fontSize: "0.65rem", fontWeight: 400 }}>Menu</span>
-        </button>
       </nav>
 
       {/* ── MOBILE DRAWER OVERLAY ── */}
@@ -207,9 +211,13 @@ export default function AppSidebar() {
         {/* Drawer user */}
         <div style={{ padding: "1rem", borderTop: "1px solid rgba(255,255,255,.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", marginBottom: "0.75rem" }}>
-            <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--yellow)", display: "grid", placeItems: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--navy)" }}>{initials}</span>
-            </div>
+            {user?.profilePicture ? (
+              <img src={user.profilePicture} alt="Profile" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+            ) : (
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--yellow)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: "0.78rem", fontWeight: 800, color: "var(--navy)" }}>{initials}</span>
+              </div>
+            )}
             <div>
               <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "white" }}>{user?.name ?? "User"}</div>
               <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,.45)" }}>Free Plan</div>

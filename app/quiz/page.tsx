@@ -50,7 +50,12 @@ export default function QuizPage() {
 
   // quiz config state
   const [started,    setStarted]   = useState(false);
-  const [subject,    setSubject]   = useState("Mathematics");
+  // Override pattern — undefined means fall back to user's first subject
+  const [subjectOverride, setSubjectOverride] = useState<string | undefined>(undefined);
+  const defaultSubject = user?.subjects?.length
+    ? (user.subjects[0] === "English" ? "Use of English" : user.subjects[0])
+    : "Use of English";
+  const subject = subjectOverride ?? defaultSubject;
   const [generating, setGenerating] = useState(false);
   const [genError,   setGenError]  = useState("");
 
@@ -165,7 +170,8 @@ export default function QuizPage() {
     const base: React.CSSProperties = {
       display: "flex", alignItems: "center", gap: "1rem",
       padding: "1rem 1.25rem", borderRadius: "var(--radius-sm)",
-      border: "1.5px solid var(--border)", background: "white",
+      borderWidth: "1.5px", borderStyle: "solid", borderColor: "var(--border)",
+      background: "white",
       cursor: isSubmitted ? "default" : "pointer",
       transition: "border-color .15s, background .15s",
       width: "100%", textAlign: "left", fontFamily: "'DM Sans',sans-serif",
@@ -238,7 +244,7 @@ export default function QuizPage() {
               </label>
               <select
                 value={subject}
-                onChange={e => setSubject(e.target.value)}
+                onChange={e => setSubjectOverride(e.target.value)}
                 style={{
                   width: "100%", padding: "0.72rem 0.9rem",
                   border: "1.5px solid var(--border)", borderRadius: "var(--radius-sm)",
@@ -246,7 +252,9 @@ export default function QuizPage() {
                   color: "var(--navy)", background: "white", outline: "none",
                 }}
               >
-                {(user?.subjects?.length ? user.subjects : SUBJECTS).map(s => (
+                {[...new Set((user?.subjects ?? []).map(s =>
+                    s === "English" ? "Use of English" : s
+                  ))].map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
@@ -255,7 +263,7 @@ export default function QuizPage() {
             {/* meta */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.75rem", marginBottom: "1.5rem" }}>
               {[
-                { label: "Questions", value: "20"     },
+                { label: "Questions", value: String(questions.length || QUESTIONS_COUNT) },
                 { label: "Time Limit", value: `${QUESTIONS_COUNT * MINS_PER_QUESTION} min` },
                 { label: "Subject",    value: subject   },
               ].map(({ label, value }) => (

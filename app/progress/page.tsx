@@ -38,16 +38,11 @@ const SUBJECTS = [
   { name: "Biology",      score: 42, icon: "🧬" },
 ];
 
-const WEAK_AREAS = [
-  { topic: "Calculus: Integration",  subject: "Math",    accuracy: 15, lastQuiz: "34%"  },
-  { topic: "Thermodynamics",         subject: "Physics",  accuracy: 20, lastQuiz: "41%"  },
-  { topic: "Nervous System Path",    subject: "Biology",  accuracy: 18, lastQuiz: "48%"  },
-  { topic: "Organic Chemistry",      subject: "Chem",     accuracy: 12, lastQuiz: "29%"  },
-];
+const WEAK_AREAS: { topic: string; subject: string; accuracy: number; lastQuiz: string }[] = [];
 
-const STREAK_DAYS = 12;
-const TOTAL_DAYS  = 64;
-const PREP_SCORE  = 742;
+const STREAK_DAYS = 0;
+const TOTAL_DAYS  = 0;
+const PREP_SCORE  = 0;
 
 // Generate 90-day heatmap data (mock — last 12 days active in a pattern)
 function generateHeatmap() {
@@ -62,7 +57,7 @@ function generateHeatmap() {
   activePattern.forEach(i => { if (i < 90) cells[89 - i] = true; });
   return cells;
 }
-const HEATMAP = generateHeatmap();
+const HEATMAP: boolean[] = Array(90).fill(false);
 
 // ── mini chart ────────────────────────────────────────────────────────────────
 
@@ -76,7 +71,7 @@ function ScoreChart({ data }: { data: { day: string; score: number }[] }) {
   const chartH = H - padY * 2;
 
   const points = data.map((d, i) => ({
-    x: padX + (i / (data.length - 1)) * chartW,
+    x: data.length === 1 ? padX + chartW / 2 : padX + (i / (data.length - 1)) * chartW,
     y: padY + chartH - (d.score / max) * chartH,
   }));
 
@@ -121,6 +116,7 @@ export default function ProgressPage() {
   const router  = useRouter();
   const { token } = useAuth();
   const [range, setRange] = useState<"7" | "30">("7");
+  const [dataLoading, setDataLoading] = useState(true);
   const [apiData, setApiData] = useState<{
     totalQuizzes: number; avgScore: number; currentStreak: number;
     totalCorrect: number; totalWrong: number;
@@ -135,7 +131,8 @@ export default function ProgressPage() {
     fetch(`${API}/api/progress`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => { if (d.success) setApiData(d.data); })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setDataLoading(false));
   }, [token]);
   // build chart data from real quiz history or fall back to mock
   const chartData = apiData?.recentHistory?.length
@@ -215,6 +212,15 @@ export default function ProgressPage() {
 
   return (
     <AppShell>
+      {dataLoading ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ width: 40, height: 40, border: "3px solid var(--border)", borderTopColor: "var(--navy)", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 1rem" }} />
+            <p style={{ color: "var(--muted)", fontSize: "0.88rem" }}>Loading your progress...</p>
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      ) : (
       <div style={{ padding: "2rem 2rem 3rem" }}>
 
         {/* ── header ── */}
@@ -300,7 +306,7 @@ export default function ProgressPage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem", marginBottom: "1.25rem" }} className="progress-bottom-grid">
 
           {/* weak areas */}
-          <div style={{ background: "white", borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "1.5rem" }}>
+          <div id="critical-gaps" style={{ background: "white", borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "1.5rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <AlertCircle size={17} color="#ef4444" strokeWidth={2} />
@@ -338,7 +344,7 @@ export default function ProgressPage() {
             </div>
 
             <button
-              onClick={() => {}}
+              onClick={() => document.getElementById("critical-gaps")?.scrollIntoView({ behavior: "smooth" })}
               style={{ display: "flex", alignItems: "center", gap: 5, marginTop: "1rem", background: "none", border: "none", cursor: "pointer", color: "var(--yellow-dark)", fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: "0.82rem" }}
             >
               View Full Analysis <ArrowRight size={14} strokeWidth={2} />
@@ -427,8 +433,10 @@ export default function ProgressPage() {
           </button>
         </div>
       </div>
+      )}
 
       <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
         @media(max-width: 900px) {
           .progress-top-grid { grid-template-columns: 1fr !important; }
           .progress-bottom-grid { grid-template-columns: 1fr !important; }

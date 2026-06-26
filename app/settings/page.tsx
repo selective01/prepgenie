@@ -309,7 +309,15 @@ export default function SettingsPage() {
                 {uploadErr && <p style={{ fontSize: "0.72rem", color: "#ef4444", margin: "0 0 0.35rem" }}>{uploadErr}</p>}
                 <div style={{ display: "flex", gap: "0.75rem" }}>
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--navy)", background: "none", border: "none", cursor: uploading ? "wait" : "pointer", fontFamily: "'DM Sans',sans-serif", padding: 0 }}>{uploading ? "Uploading..." : "Upload new"}</button>
-                  <button style={{ fontSize: "0.78rem", fontWeight: 700, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", padding: 0 }}>Remove</button>
+                  <button onClick={async () => {
+                    const t = token || localStorage.getItem("pg_token");
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/auth/profile-picture`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+                      body: JSON.stringify({ profilePicture: null }),
+                    });
+                    updateProfilePic("");
+                  }} style={{ fontSize: "0.78rem", fontWeight: 700, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", padding: 0 }}>Remove</button>
                 </div>
               </div>
             </div>

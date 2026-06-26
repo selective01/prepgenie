@@ -50,31 +50,59 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // ── provider ──────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user,    setUser]    = useState<AuthUser | null>(null);
   const [token,   setToken]   = useState<string | null>(null);
   const [loading, setLoading] = useState(true);  // true on mount while we check localStorage
   const [error,   setError]   = useState<string | null>(null);
 
+  // ── detect bfcache restore and re-verify auth ────────────────────────────
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        // page restored from bfcache — re-check token
+        const stored = localStorage.getItem("pg_token");
+        if (!stored) {
+          setToken(null);
+          setUser(null);
+          router.push("/login");
+        }
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [router]);
+
   // ── restore session on mount ──────────────────────────────────────────────
   useEffect(() => {
-    const stored = localStorage.getItem("pg_token");
-    if (!stored) { setLoading(false); return; }
+    const restore = async () => {
+      const stored = localStorage.getItem("pg_token");
+      if (!stored) { setLoading(false); return; }
 
-    // verify the token is still valid by calling /me
-    fetch(`${API}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${stored}` },
-    })
-      .then(res => res.json())
-      .then(data => {
+      try {
+        const res  = await fetch(`${API}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${stored}` },
+        });
+        const data = await res.json();
         if (data.success) {
           setToken(stored);
           setUser(data.user);
         } else {
+          // token invalid — clear everything and send to login
           localStorage.removeItem("pg_token");
+          removeCookie();
+          router.push("/login");
         }
-      })
-      .catch(() => localStorage.removeItem("pg_token"))
-      .finally(() => setLoading(false));
+      } catch {
+        // network error — clear token so user can try again
+        localStorage.removeItem("pg_token");
+        removeCookie();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    restore();
   }, []);
 
   // ── login ─────────────────────────────────────────────────────────────────
@@ -129,8 +157,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const router = useRouter();
-
   // ── logout ────────────────────────────────────────────────────────────────
   const logout = useCallback(() => {
     localStorage.removeItem("pg_token");
@@ -165,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── update profile picture (state only — API call is in settings page) ──────
   const updateProfilePic = useCallback((base64: string) => {
-    setUser(prev => prev ? { ...prev, profilePicture: base64 } : prev);
+    setUser(prev => prev ? { ...prev, profilePicture: base64 || null } : prev);
   }, []);
 
   // ── delete account ────────────────────────────────────────────────────────────

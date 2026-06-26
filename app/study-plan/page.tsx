@@ -165,9 +165,17 @@ export default function StudyPlanPage() {
   }, [token]);
 
   const hasDayData  = tasks.some(t => t.day !== undefined);
-  const dayTasks    = hasDayData
-    ? tasks.filter(t => t.day === activeDay)
-    : tasks; // fallback: show all tasks if plan has no day data
+  const userSubjects = (user?.subjects ?? []).map(s => s.toLowerCase());
+  const dayTasks    = (hasDayData ? tasks.filter(t => t.day === activeDay) : tasks)
+    .filter(t => {
+      if (!userSubjects.length) return true;
+      const s = t.subject?.toLowerCase();
+      return userSubjects.some(u =>
+        s === u ||
+        (u === "use of english" && s === "english") ||
+        (u === "english" && s === "use of english")
+      );
+    });
   const completed   = tasks.filter(t => t.done).length;
   const daysToExam  = user?.examDate
     ? Math.max(0, Math.ceil((new Date(user.examDate).getTime() - new Date().getTime()) / 86400000))
